@@ -1,0 +1,87 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project
+
+**Finder Toolbox** — a native macOS menu bar utility that brings Finder-aware power tools to keyboard-driven users. Bundle ID `danielammann.Finder-Toolbox`, category `utilities`. Solo project, no deadline.
+
+The first feature is a **hotkey-driven smart file renamer**: press a global hotkey, the app queries Finder for the current selection, detects/reformats any leading date prefix (or prepends today's date), and renames via Apple Events to Finder so it lands in Finder's native undo stack. The "toolbox" name reserves room for further Finder utilities under the same menu bar surface.
+
+For the full product context, read in this order:
+1. **`CONCEPT.md`** — what this is, who it's for, why these design choices.
+2. **`ROADMAP.md`** — versioned feature plan (v1 prototype → v4+ toolbox expansion).
+3. **`docs/architecture-notes.md`** — load-bearing technical decisions and their rationale (App Store rejection, Apple Events vs `NSFileManager`, hotkey library, FSEvents, etc.). Read this before touching the rename pipeline.
+
+The repo is currently a fresh Xcode scaffold (`Finder_ToolboxApp.swift` + `ContentView.swift` showing "Hello, world!"). No feature code yet.
+
+## Build / Run
+
+There is no test target and no SPM package — just the Xcode project. (A test target is a v1 task — see `ROADMAP.md`.) Use `xcodebuild` from the repo root (note the spaces in the project path):
+
+```sh
+# Build (Debug)
+xcodebuild -project "Finder Toolbox.xcodeproj" -scheme "Finder Toolbox" -configuration Debug build
+
+# Clean
+xcodebuild -project "Finder Toolbox.xcodeproj" -scheme "Finder Toolbox" clean
+
+# Run the built app
+open "$(xcodebuild -project 'Finder Toolbox.xcodeproj' -scheme 'Finder Toolbox' -showBuildSettings 2>/dev/null | awk -F= '/ BUILT_PRODUCTS_DIR /{gsub(/ /,"",$1); print $2}' | tr -d ' ')/Finder Toolbox.app"
+```
+
+Most day-to-day iteration is expected to happen in Xcode (⌘R / ⌘B / SwiftUI Previews).
+
+## Project structure conventions
+
+- The target uses `PBXFileSystemSynchronizedRootGroup` — **new `.swift` files dropped into `Finder Toolbox/` are picked up automatically**. Do not hand-edit `project.pbxproj` to register new files.
+- Suggested folder layout inside `Finder Toolbox/`: `App/`, `Rename/`, `FinderBridge/`, `Hotkey/`, `UI/`, `Permissions/`. See `docs/architecture-notes.md` for rationale. These are filesystem folders, not Xcode groups.
+- Asset catalog lives at `Finder Toolbox/Assets.xcassets/` (uses `AppIcon` and `AccentColor`). Swift symbols for assets are generated (`ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES`).
+- Localization prefers String Catalogs (`LOCALIZATION_PREFERS_STRING_CATALOGS = YES`, `STRING_CATALOG_GENERATE_SYMBOLS = YES`) — add a `.xcstrings` file rather than `.strings` if you need localization.
+- Info.plist is generated (`GENERATE_INFOPLIST_FILE = YES`); add Info.plist keys via `INFOPLIST_KEY_*` build settings, not by creating an Info.plist file. Notably, the menu-bar-only behavior will be set via `INFOPLIST_KEY_LSUIElement = YES`, and the Automation usage string via `INFOPLIST_KEY_NSAppleEventsUsageDescription`.
+
+## Concurrency model
+
+The target sets `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` and `SWIFT_APPROACHABLE_CONCURRENCY = YES`. New code is `@MainActor`-isolated by default — explicitly mark types/functions `nonisolated` (or move them onto another actor) when they should run off the main thread. Don't sprinkle `@MainActor` onto every type; it's redundant here.
+
+In particular, the rename batch executor and any `NSAppleScript.executeAndReturnError` call **must** run off the main thread to avoid janking the menu bar / progress UI. Hop back via `await MainActor.run { … }` or `Task { @MainActor in … }` for UI updates.
+
+Swift language mode is 5.0 with upcoming feature `MEMBER_IMPORT_VISIBILITY` enabled.
+
+## Sandbox & entitlements
+
+> **The current build settings do not yet match the product direction.** As of this writing, the project is configured for App Store sandboxing. The product requires direct distribution. The first v1 task is to reconcile this — see `ROADMAP.md`.
+
+Current settings (Xcode scaffold defaults):
+
+- `ENABLE_APP_SANDBOX = YES` — **must be disabled** for v1. Sandboxing is incompatible with the global-hotkey-on-Finder-selection interaction model. App Store distribution is explicitly out of scope; see `docs/architecture-notes.md` for the full rationale.
+- `ENABLE_HARDENED_RUNTIME = YES` — keep on. Required for Developer ID notarization.
+- `ENABLE_USER_SELECTED_FILES = readonly` — irrelevant once sandbox is off; remove.
+- `REGISTER_APP_GROUPS = YES` — currently on but no app group configured. Leave or drop; no app group is planned.
+- `ENABLE_USER_SCRIPT_SANDBOXING = YES` — fine; this is for build phase scripts, unrelated to runtime sandboxing.
+
+To be added when implementing v1:
+
+- A `Finder Toolbox.entitlements` file wired via `CODE_SIGN_ENTITLEMENTS`, containing at minimum `com.apple.security.automation.apple-events`.
+- `INFOPLIST_KEY_NSAppleEventsUsageDescription` build setting (the user-facing string macOS shows when prompting for Automation permission for Finder).
+- `INFOPLIST_KEY_LSUIElement = YES` so the app runs as a menu bar accessory with no Dock icon.
+
+## Distribution
+
+**Direct distribution only.** Developer ID signed + notarized DMG. App Store ruled out — see `docs/architecture-notes.md` for the rationale (don't relitigate this without reading it first).
+
+## Deployment targets
+
+- App target: macOS **15.6** (`MACOSX_DEPLOYMENT_TARGET = 15.6` at the target level).
+- Project-level setting is `26.4`, but the target overrides it — 15.6 is the effective floor. Keep API usage within macOS 15 unless you intentionally raise the target.
+
+## Versioning
+
+`MARKETING_VERSION = 0.0.1`, `CURRENT_PROJECT_VERSION` uses a date-stamp scheme (`2026-05-05-01`). Bump the date-stamp on each build you intend to ship.
+
+## Hard constraints (do not violate without discussion)
+
+- **Official public APIs only.** No private framework calls.
+- **Energy-efficient at idle.** No polling. Folder watching uses `FSEvents`. The app is headless when not actively performing a rename.
+- **Headless-by-default interaction.** The hotkey is the primary surface. GUIs are reserved for settings and exception handling. New "toolbox" features must preserve this — if a feature requires a window to use, it doesn't belong in this product.
+- **Smart-extraction date sources are explicit.** `.eml` Date header, PDF metadata, image EXIF — never file-system creation/modification dates as a fallback for these (an `.eml` exported days after receipt would otherwise get a meaningless date).
