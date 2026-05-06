@@ -47,7 +47,11 @@ actor RenameExecutor {
 
     private func canonicalName(for url: URL) -> String {
         let ext = url.pathExtension
-        let stem = url.deletingPathExtension().lastPathComponent
+        var stem = url.deletingPathExtension().lastPathComponent
+
+        if UserDefaults.standard.bool(forKey: "cleanup.trimStemWhitespace") {
+            stem = stem.trimmingCharacters(in: .whitespaces)
+        }
 
         if let detected = DateDetector.detect(in: stem) {
             return FilenameBuilder.canonical(date: detected.date, remainder: detected.remainder, extension: ext)

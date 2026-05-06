@@ -79,12 +79,14 @@ final class AppController: ObservableObject {
         let summary = await executor.reverseRename(records)
         SummaryDialog.showIfNeeded(summary)
     }
+
 }
 
 // MARK: - MenuBarContentView
 
 struct MenuBarContentView: View {
     @EnvironmentObject var controller: AppController
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         Button(controller.isRenaming ? "Renaming…" : "Rename Selection") {
@@ -102,7 +104,10 @@ struct MenuBarContentView: View {
 
         Divider()
 
-        SettingsLink()
+        Button("Settings…") {
+            NSApp.activate(ignoringOtherApps: true)
+            openSettings()
+        }
 
         Divider()
 

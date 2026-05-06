@@ -7,18 +7,17 @@ enum FilenameBuilder {
         let d = date.day ?? 0
         let datePart = String(format: "%04d-%02d-%02d", y, m, d)
 
-        let trimmed = remainder.trimmingCharacters(in: .whitespaces)
         let extTrimmed = ext.trimmingCharacters(in: .whitespaces)
 
-        switch (trimmed.isEmpty, extTrimmed.isEmpty) {
+        switch (remainder.isEmpty, extTrimmed.isEmpty) {
         case (true, true):
             return datePart
         case (true, false):
             return "\(datePart).\(extTrimmed)"
         case (false, true):
-            return "\(datePart) \(trimmed)"
+            return "\(datePart) \(remainder)"
         case (false, false):
-            return "\(datePart) \(trimmed).\(extTrimmed)"
+            return "\(datePart) \(remainder).\(extTrimmed)"
         }
     }
 

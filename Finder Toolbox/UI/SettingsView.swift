@@ -4,6 +4,7 @@ struct SettingsView: View {
     @StateObject private var permissions = PermissionsManager.shared
     @State private var isRecordingHotkey = false
     @State private var hotkeyLabel = HotkeyManager.shared.currentShortcutLabel
+    @AppStorage("cleanup.trimStemWhitespace") private var trimStemWhitespace = false
 
     var body: some View {
         Form {
@@ -16,6 +17,10 @@ struct SettingsView: View {
                         hotkeyLabel = HotkeyManager.shared.currentShortcutLabel
                     }
                 )
+            }
+
+            Section("Cleanup") {
+                Toggle("Remove space before extension", isOn: $trimStemWhitespace)
             }
 
             if permissions.finderAutomationStatus == .denied {
