@@ -1,0 +1,253 @@
+Return-Path: <>
+Received: from www381.your-server.de
+	by www381.your-server.de with LMTP
+	id +MiFHQLA+WkDGgAAcUM0dg
+	(envelope-from <>); Tue, 05 May 2026 12:01:38 +0200
+Envelope-to: post@refugis.de
+Delivery-date: Tue, 05 May 2026 12:01:38 +0200
+Received: from mail-germanywestcentralazhn150120002.outbound.protection.outlook.com ([2a01:111:f403:da0c::2] helo=FR5P281CU006.outbound.protection.outlook.com)
+	by www381.your-server.de with esmtps  (TLS1.3) tls TLS_AES_256_GCM_SHA384
+	(Exim 4.96.2)
+	id 1wKCat-0002D8-0k
+	for post@refugis.de;
+	Tue, 05 May 2026 12:01:38 +0200
+ARC-Seal: i=1; a=rsa-sha256; s=arcselector10001; d=microsoft.com; cv=none;
+ b=Kzl3vFkRy308j06VD93uXXVJjT0gmve+hjw64SLbc0bYn9EaOoO7zmvEFNMurbIlza8a8S46PHdCuht3Z9rbdJ+RTD53p2HrQHjYwwk+g2reqnau0uCcQvNECWmXLwUnAy6eUDtE07K+HNIiiwAaiyxG88FryTF6sPrH8YBxBKIrk0eKAefFKeQM8wMocTp8xLcGIPI0u77wZYDhV9X9iLCu+xg9uaMsweP2upVk/3vUoLqDcn0VCyv70I/7k7nkCFmLSJSXtsYMAOo7BXlUjMr6SHCSejMWXVWQJIAixm8cwlF6fkd64JcfOWRBPNvwzkz3RnxwifOsj3sbIKzizg==
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=microsoft.com;
+ s=arcselector10001;
+ h=From:Date:Subject:Message-ID:Content-Type:MIME-Version:X-MS-Exchange-AntiSpam-MessageData-ChunkCount:X-MS-Exchange-AntiSpam-MessageData-0:X-MS-Exchange-AntiSpam-MessageData-1;
+ bh=WQbEKgEDyhFkl0wNw8NUJQLISgEzK9zcqXaBjNgdnlw=;
+ b=FDdbSYQljj8zdg9F7JU5PHwLEhlIstRA8OYBB67AH3nNEq29lUUktbAdHKI0cKN+Wv8V426MS3eZ7ZV+XO5369SlfMbmmlSBpgKp9Y+/JjiG8V7fmCBTopUKnWWOVYYdocJZCHzRxag+TLKq6YfJj5/bwgSxbtF6gwAju9y0TgiWzK5G6bgecUXBa2h7DpjOaBEycbAF4/x5oZdyJReqPQ+JUqDGOUH9ZE6Y3K7x+Wek3QKQe25NimuxU1mXIYEomd4h/l6ed5ZxPfX7eGD6/iKiC2D9uvhyYDtk5wMIvWLYycas6TO7yHW0ugwiL2UklBWhXLA7t7z7gn/JudSmLw==
+ARC-Authentication-Results: i=1; mx.microsoft.com 1; spf=none; dmarc=pass
+ action=none header.from=lew.de; dkim=pass header.d=lew.de; arc=none
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=lew.de; s=selector1;
+ h=From:Date:Subject:Message-ID:Content-Type:MIME-Version:X-MS-Exchange-SenderADCheck;
+ bh=WQbEKgEDyhFkl0wNw8NUJQLISgEzK9zcqXaBjNgdnlw=;
+ b=pE878ugoSlN/nzLkx5tEl6Azfdn3GZnDb36LYFARoMMZK0S4/D/+UHNh9zYXT9bBHOjNf0OVkMb/g8KFd4Ws//6Vof2df2dgKtnUkLBlTDq4RT46S2PdzjPPdtgt8wM6rv0+1OLV2mI4xGHATP360ek80z838hhL7f5Qms6PsrHrm9tQ1dK1OGMiMZS7t+RQgi7hs2CB+aZV0bf/ALNe7rp3lgZ9cH+4Wc742fKTxkPotmh/Kd+epZlBhK3FSAoW0jsJS1rpGWpDakF/ZmA0sOVYUlMHx/oo7t7srOYehotNiBk/rxZIPxJ0sWl25WrLBuWDdFWl4Ayvmq6o2TclIQ==
+Received: from FRSP281MB5697.DEUP281.PROD.OUTLOOK.COM (2603:10a6:d10:1bd::22)
+ by FRYP281MB3068.DEUP281.PROD.OUTLOOK.COM (2603:10a6:d10:77::9) with
+ Microsoft SMTP Server (version=TLS1_2,
+ cipher=TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384) id 15.20.9870.25; Tue, 5 May
+ 2026 10:01:29 +0000
+Received: from FRSP281MB5697.DEUP281.PROD.OUTLOOK.COM ([::1]) by
+ FRSP281MB5697.DEUP281.PROD.OUTLOOK.COM ([fe80::4b15:c2d1:373c:954e%3]) with
+ Microsoft SMTP Server id 15.20.9870.023; Tue, 5 May 2026 10:01:29 +0000
+From: ERSK-V Service <Service@LEW.DE>
+To: Ivonne Ammann <post@refugis.de>
+Subject: Automatic reply: Abbuchung Frage
+Thread-Topic: Abbuchung Frage
+Thread-Index: AQHc3HYjRWTxw7pTvU25nFHRyd5x97X/M11b
+Date: Tue, 5 May 2026 10:01:29 +0000
+Message-ID:
+ <ffb79a1d76d74977869242f9fbaf39eb@FRSP281MB5697.DEUP281.PROD.OUTLOOK.COM>
+References: <3FEDC284-DDA1-4B18-B965-A5F6A955BE61@refugis.de>
+In-Reply-To: <3FEDC284-DDA1-4B18-B965-A5F6A955BE61@refugis.de>
+X-MS-Has-Attach:
+X-Auto-Response-Suppress: All
+X-MS-Exchange-Inbox-Rules-Loop: service@lew.de
+X-MS-TNEF-Correlator:
+authentication-results: dkim=none (message not signed)
+ header.d=none;dmarc=none action=none header.from=LEW.DE;
+x-ms-exchange-parent-message-id:
+ <3FEDC284-DDA1-4B18-B965-A5F6A955BE61@refugis.de>
+auto-submitted: auto-generated
+x-ms-exchange-generated-message-source: Mailbox Rules Agent
+x-ms-publictraffictype: Email
+x-ms-traffictypediagnostic: FRSP281MB5697:EE_|FRYP281MB3068:EE_
+x-ms-office365-filtering-correlation-id: 00b0a265-43b6-44fc-efdf-08deaa8d474b
+x-ms-exchange-senderadcheck: 1
+x-ms-exchange-antispam-relay: 0
+x-microsoft-antispam:
+ BCL:0;ARA:13230040|50650200027|366016|1800799024|376014|10070799003|56012099003|22082099003|18002099003|13003099007|8096899003|80100003;
+x-microsoft-antispam-message-info:
+ CCRZUHTPjE4nDu8hEPFFDfJVSseJ6LgGJ3VP2FJjZEDrbOSUhAJbh6hzAFdF/7Fg5pZBJeiiwKorf46b4R/5rVo7TK4Dblf4FT/bOsGIwAx81rFH5jkWpNn/JMSmZFnlZJdu9ze1bOeJleEnb9ldj7H8EIpb8ERriXtM7+GXh0leTSJE5h8n8BK8dLW2PoAI8NzADJ3bcFI4LFGEI2SGaCYqOQVrgH5+wpAmd/3mtzrMiuqbcDRBKUpMFojH7mvoDaAbsHGIcy2V0KHuX9OGLmrQW+aQ/kv5diSXTAAe//gB0GnE2j5dmqnsYCeBI/Ct6iStTUuOuWmx9rfiADhDFzMVt4jGlKiQ4UGjZsEDvOtfHcwsxr4jK5G2rdNfwxE9RttAoJBs47wdgOXb01nxXwNhuqg0zlUrIqq2dsk/YRRxUy0oMVNX1miYRKVyfQd7G04tb3FdVA+NwV6d8Oxe0rveN8mMsAStqaT79M7szZpnJ3EeFKNwLIqwOuPNnonF31HCxaYD+H76LQXtvzNcYY9Pg3OTSTBuSgl+1Ds1AR0A32QcRd47++FHA2ccT9CuM7KrdROjJCvZHl1OaGl3RacB4CPhETcyMa8a8bJLfUzxKB1srWGOQYjYxUzax/BjCf9eVqjoSEW5/mgZm3uJVQ==
+x-forefront-antispam-report:
+ CIP:255.255.255.255;CTRY:;LANG:de;SCL:1;SRV:;IPV:NLI;SFV:NSPM;H:FRSP281MB5697.DEUP281.PROD.OUTLOOK.COM;PTR:;CAT:NONE;SFS:(13230040)(50650200027)(366016)(1800799024)(376014)(10070799003)(56012099003)(22082099003)(18002099003)(13003099007)(8096899003)(80100003);DIR:OUT;SFP:1501;
+x-ms-exchange-antispam-messagedata-chunkcount: 1
+x-ms-exchange-antispam-messagedata-0:
+ g+yJRuIyYKLB9chUqbxSygqd47Ili38wlxLIat6H+W1QvkTVwy8f5DTjGcLNFujbDzdmcDpuYd1WOMAIXNAY8eeOO5qcPYhXDkcjfk8CDsV2zyuG7XTELnuLnBHPEoePF9lhlfk7knR/meLshcL5Ui+yE8x5gmt9c+x05q1xG28mQazq6rx0LXPoWohFMO5/BBnijKo/cLV1ALJXIL2xofy3TPzUERxpmfgaQoIuFbUxwfEQN7fXHji4+JgNy2lmdEC/4iqvK4Bj2rv7z3dy0nay82+kvCwvvgcKdhg/s5BMgclV9W3q9kSAuUM07yxeMVXZEZUYL6UYNiIbKSWlZmJV2vqUoWh7gQ4qZEzBfWyQzrWNTl/Qfv8SM7RS4youqC5IAEpdlVKCFyaaaeyCIiOfxBvtrTOnVwh8OKr1pIWm2rODeGZWvPyD6PR+guM2
+Content-Type: multipart/alternative;
+	boundary="_000_ffb79a1d76d74977869242f9fbaf39ebFRSP281MB5697DEUP281PRO_"
+MIME-Version: 1.0
+X-OriginatorOrg: lew.de
+X-MS-Exchange-CrossTenant-AuthAs: Internal
+X-MS-Exchange-CrossTenant-AuthSource: FRSP281MB5697.DEUP281.PROD.OUTLOOK.COM
+X-MS-Exchange-CrossTenant-Network-Message-Id: 00b0a265-43b6-44fc-efdf-08deaa8d474b
+X-MS-Exchange-CrossTenant-originalarrivaltime: 05 May 2026 10:01:29.6162
+ (UTC)
+X-MS-Exchange-CrossTenant-fromentityheader: Hosted
+X-MS-Exchange-CrossTenant-id: b914a242-e718-443b-a47c-6b4c649d8c0a
+X-MS-Exchange-Transport-CrossTenantHeadersStamped: FRYP281MB3068
+X-DKIM-Status: pass [(lew.de) - 2a01:111:f403:da0c::2]
+X-Virus-Scanned: Clear (ClamAV 1.4.3/27992/Tue May  5 08:26:41 2026)
+Authentication-Results: www381.your-server.de;
+	iprev=pass (mail-germanywestcentralazhn150120002.outbound.protection.outlook.com) smtp.remote-ip=2a01:111:f403:da0c::2;
+	spf=pass smtp.helo=FR5P281CU006.outbound.protection.outlook.com;
+	dkim=pass header.d=lew.de header.s=selector1 header.a=rsa-sha256;
+	dmarc=pass header.from=LEW.DE
+X-Spam-Score: 2.6 (++)
+Delivered-To: post@refugis.de
+
+--_000_ffb79a1d76d74977869242f9fbaf39ebFRSP281MB5697DEUP281PRO_
+Content-Type: text/plain; charset="Windows-1252"
+Content-Transfer-Encoding: quoted-printable
+
+Vielen Dank f=FCr Ihre Nachricht.
+
+
+Aufgrund eines hohen Aufkommens an Anfragen, kommt es derzeit leider zu l=
+=E4ngeren Bearbeitungszeiten. Sie k=F6nnen sicher sein: Wir k=FCmmern uns u=
+m Ihr Anliegen. Bitte sehen Sie von weiteren Anfragen zum Bearbeitungsstand=
+ ab, das w=FCrde uns sehr helfen. Sobald wir Ihre Anfrage bearbeitet haben,=
+ kommen wir unverz=FCglich auf Sie zu. Danke f=FCr Ihr Verst=E4ndnis.
+
+Nutzen Sie schon Ihr pers=F6nliches LEW Kundenkonto? Z=E4hlerst=E4nde =FCbe=
+rmitteln, Bankdaten =E4ndern, Rechnungen und Verbr=E4uche einsehen - dies k=
+=F6nnen Sie alles wann und wo Sie wollen mit wenigen Klicks erledigen. Regi=
+strieren Sie sich am besten gleich unter www.lew.de/kundenkonto<https://der=
+ef-gmx.net/mail/client/mJbuhsTQPHQ/dereferrer/?redirectUrl=3Dhttp%3A%2F%2Fw=
+ww.lew.de%2Fkundenkonto> - es lohnt sich!
+
+Freundliche Gr=FC=DFe
+Kundenservice Commodity
+T 0800 539 539 1
+mailto: service@lew.de<mailto:service@lew.de>
+
+
+
+Lechwerke AG =95 Schaezlerstra=DFe 3 =95 86150 Augsburg =95 www.lew.de<http=
+://www.lew.de/>
+Facebook<https://de-de.facebook.com/Lechwerke/> =95 Instagram<https://www.i=
+nstagram.com/lechwerke/?hl=3Dde> =95 LinkedIn<https://de.linkedin.com/compa=
+ny/lechwerke-ag> =95 Xing<https://www.xing.com/pages/lechwerkeag> =95 YouTu=
+be<https://www.youtube.com/user/LechwerkeAG>
+Lechwerke AG | Schaezlerstra=DFe 3 | 86150 Augsburg
+Chairman of the Supervisory Board: Bernd B=F6ddeling | Executive Board: Dr.=
+ Dietrich Gemmel, Dr. Malte Sunderk=F6tter
+Registered Office: Augsburg | Commercial register HRB6164 | Court of regist=
+ry: Amtsgericht Augsburg | VAT Id DE 127470129
+
+
+--_000_ffb79a1d76d74977869242f9fbaf39ebFRSP281MB5697DEUP281PRO_
+Content-Type: text/html; charset="Windows-1252"
+Content-Transfer-Encoding: quoted-printable
+
+<html>
+<head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3DWindows-1=
+252">
+</head>
+<body>
+<div id=3D"divtagdefaultwrapper">
+<p style=3D"direction:ltr; text-align:left; text-indent:0px; margin:0px"><s=
+pan style=3D"font-family:Calibri,Helvetica,sans-serif; font-size:11pt; colo=
+r:rgb(0,0,0)">Vielen Dank f=FCr Ihre Nachricht.&nbsp;</span></p>
+<div style=3D"direction:ltr; text-align:left; text-indent:0px; margin:0px; =
+font-family:Calibri,Helvetica,sans-serif; font-size:11pt; color:rgb(0,0,0)"=
+>
+<i>&nbsp;</i>&nbsp;</div>
+<div style=3D"direction:ltr; text-align:left; text-indent:0px; margin:0px; =
+font-family:Calibri,Helvetica,sans-serif; font-size:11pt; color:rgb(0,0,0)"=
+>
+Aufgrund eines hohen Aufkommens an Anfragen, kommt es derzeit leider zu l=
+=E4ngeren Bearbeitungszeiten. Sie k=F6nnen sicher sein: Wir k=FCmmern uns u=
+m Ihr Anliegen. Bitte sehen Sie von weiteren Anfragen zum Bearbeitungsstand=
+ ab, das w=FCrde uns sehr helfen. Sobald wir
+ Ihre Anfrage bearbeitet haben, kommen wir unverz=FCglich auf Sie zu. Danke=
+ f=FCr Ihr Verst=E4ndnis.&nbsp;&nbsp;</div>
+<div style=3D"direction:ltr; text-align:left; text-indent:0px; margin:0px; =
+font-family:Calibri,Helvetica,sans-serif; font-size:11pt; color:rgb(0,0,0)"=
+>
+&nbsp;</div>
+<div style=3D"direction:ltr; text-align:left; text-indent:0px; margin:0px; =
+font-family:Calibri,Helvetica,sans-serif; font-size:11pt; color:rgb(0,0,0)"=
+>
+Nutzen Sie schon Ihr pers=F6nliches LEW Kundenkonto? Z=E4hlerst=E4nde =FCbe=
+rmitteln, Bankdaten =E4ndern, Rechnungen und Verbr=E4uche einsehen - dies k=
+=F6nnen Sie alles wann und wo Sie wollen mit wenigen Klicks erledigen. Regi=
+strieren Sie sich am besten gleich unter
+<a href=3D"https://deref-gmx.net/mail/client/mJbuhsTQPHQ/dereferrer/?redire=
+ctUrl=3Dhttp%3A%2F%2Fwww.lew.de%2Fkundenkonto" target=3D"_blank" class=3D"H=
+yperlinkV2 SCXO190951162 BCX8" rel=3D"noreferrer noopener" style=3D"color:r=
+gb(70,120,134); margin:0px">
+www.lew.de/kundenkonto</a>&nbsp;- es lohnt sich!&nbsp;</div>
+<div style=3D"text-align:left; text-indent:0px; margin-top:0px; margin-bott=
+om:0px; font-family:Calibri,Helvetica,sans-serif; font-size:11pt; color:rgb=
+(0,0,0)">
+<br>
+Freundliche Gr=FC=DFe</div>
+<div style=3D"text-align:left; text-indent:0px; margin-top:0px; margin-bott=
+om:0px; font-family:Calibri,Helvetica,sans-serif; font-size:11pt; color:rgb=
+(0,0,0)">
+Kundenservice Commodity</div>
+<div style=3D"direction:ltr; margin-top:0px; margin-bottom:0px; font-family=
+:Calibri,Helvetica,sans-serif; font-size:11pt">
+<span style=3D"color:rgb(0,0,0)">T 0800 539 539 1</span><span style=3D"colo=
+r:rgb(31,73,125)"><br>
+</span><span style=3D"color:rgb(5,99,193)"><a href=3D"mailto:service@lew.de=
+" style=3D"color:rgb(5,99,193); margin-top:0px; margin-bottom:0px">mailto:&=
+nbsp;service@lew.de</a></span></div>
+<p style=3D"direction:ltr; margin-top:0px; margin-bottom:0px"><span style=
+=3D"font-family:Calibri,Helvetica,sans-serif; font-size:11pt; color:rgb(31,=
+73,125)">&nbsp;</span></p>
+<p style=3D"direction:ltr; margin:0cm"><span style=3D"font-family:Calibri,H=
+elvetica,sans-serif; font-size:12pt; color:rgb(0,0,0)">Lechwerke AG =95&nbs=
+p;Schaezlerstra=DFe 3&nbsp;=95 86150 Augsburg =95
+</span><span style=3D"font-family:Calibri,Helvetica,sans-serif; font-size:1=
+2pt; color:rgb(5,99,193)"><a href=3D"http://www.lew.de/" style=3D"color:rgb=
+(5,99,193); margin-top:0px; margin-bottom:0px">www.lew.de</a></span><span s=
+tyle=3D"font-family:Calibri,Helvetica,sans-serif; font-size:12pt; color:rgb=
+(0,0,0)"><br>
+</span><span style=3D"font-family:Calibri,Helvetica,sans-serif; font-size:1=
+2pt; color:rgb(5,99,193)"><a href=3D"https://de-de.facebook.com/Lechwerke/"=
+ style=3D"color:rgb(5,99,193); margin-top:0px; margin-bottom:0px">Facebook<=
+/a></span><span style=3D"font-family:Calibri,Helvetica,sans-serif; font-siz=
+e:12pt; color:rgb(0,0,0)">
+</span><span style=3D"font-family:Calibri,Helvetica,sans-serif; font-size:1=
+2pt; color:rgb(3,99,193)">=95</span><span style=3D"font-family:Calibri,Helv=
+etica,sans-serif; font-size:12pt; color:rgb(0,0,0)">
+</span><span style=3D"font-family:Calibri,Helvetica,sans-serif; font-size:1=
+2pt; color:rgb(5,99,193)"><a href=3D"https://www.instagram.com/lechwerke/?h=
+l=3Dde" style=3D"color:rgb(5,99,193); margin-top:0px; margin-bottom:0px">In=
+stagram</a></span><span style=3D"font-family:Calibri,Helvetica,sans-serif; =
+font-size:12pt; color:rgb(0,0,0)">
+</span><span style=3D"font-family:Calibri,Helvetica,sans-serif; font-size:1=
+2pt; color:rgb(3,99,193)">=95</span><span style=3D"font-family:Calibri,Helv=
+etica,sans-serif; font-size:12pt; color:rgb(0,0,0)">
+</span><span style=3D"font-family:Calibri,Helvetica,sans-serif; font-size:1=
+2pt; color:rgb(5,99,193)"><a href=3D"https://de.linkedin.com/company/lechwe=
+rke-ag" style=3D"color:rgb(5,99,193); margin-top:0px; margin-bottom:0px">Li=
+nkedIn</a></span><span style=3D"font-family:Calibri,Helvetica,sans-serif; f=
+ont-size:12pt; color:rgb(0,0,0)">
+</span><span style=3D"font-family:Calibri,Helvetica,sans-serif; font-size:1=
+2pt; color:rgb(3,99,193)">=95</span><span style=3D"font-family:Calibri,Helv=
+etica,sans-serif; font-size:12pt; color:rgb(0,0,0)">
+</span><span style=3D"font-family:Calibri,Helvetica,sans-serif; font-size:1=
+2pt; color:rgb(5,99,193)"><a href=3D"https://www.xing.com/pages/lechwerkeag=
+" style=3D"color:rgb(5,99,193); margin-top:0px; margin-bottom:0px">Xing</a>=
+</span><span style=3D"font-family:Calibri,Helvetica,sans-serif; font-size:1=
+2pt; color:rgb(0,0,0)">
+</span><span style=3D"font-family:Calibri,Helvetica,sans-serif; font-size:1=
+2pt; color:rgb(3,99,193)">=95</span><span style=3D"font-family:Calibri,Helv=
+etica,sans-serif; font-size:12pt; color:rgb(0,0,0)">
+</span><span style=3D"font-family:Calibri,Helvetica,sans-serif; font-size:1=
+2pt; color:rgb(5,99,193)"><a href=3D"https://www.youtube.com/user/Lechwerke=
+AG" style=3D"color:rgb(5,99,193); margin-top:0px; margin-bottom:0px">YouTub=
+e</a></span><span style=3D"font-family:Calibri,Helvetica,sans-serif; font-s=
+ize:12pt; color:rgb(31,73,125)"><br>
+</span><span style=3D"font-family:Calibri,Helvetica,sans-serif; font-size:8=
+pt; color:gray"><b>Lechwerke AG&nbsp;| Schaezlerstra=DFe 3 | 86150 Augsburg=
+<br>
+Chairman of the Supervisory Board: Bernd B=F6ddeling | Executive Board: Dr.=
+ Dietrich Gemmel, Dr. Malte Sunderk=F6tter<br>
+Registered Office: Augsburg | Commercial register HRB6164 | Court of regist=
+ry: Amtsgericht Augsburg | VAT Id DE 127470129</b></span></p>
+<div style=3D"direction:ltr; margin-top:0px; margin-bottom:12pt; font-famil=
+y:Calibri,Helvetica,sans-serif; font-size:8pt; color:gray">
+<b><br>
+</b></div>
+</div>
+</body>
+</html>
+
+--_000_ffb79a1d76d74977869242f9fbaf39ebFRSP281MB5697DEUP281PRO_--

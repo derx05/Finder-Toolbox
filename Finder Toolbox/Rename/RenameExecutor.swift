@@ -53,6 +53,15 @@ actor RenameExecutor {
             stem = stem.trimmingCharacters(in: .whitespaces)
         }
 
+        // .eml: use the date from the email headers rather than the filename or today.
+        if ext.lowercased() == "eml",
+           UserDefaults.standard.bool(forKey: "eml.useDateHeader"),
+           let emailDate = EmlDateExtractor.extractDate(from: url) {
+            // Strip any existing date prefix from the stem so we don't double-date.
+            let remainder = DateDetector.detect(in: stem)?.remainder ?? stem
+            return FilenameBuilder.canonical(date: emailDate, remainder: remainder, extension: ext)
+        }
+
         if let detected = DateDetector.detect(in: stem) {
             return FilenameBuilder.canonical(date: detected.date, remainder: detected.remainder, extension: ext)
         }

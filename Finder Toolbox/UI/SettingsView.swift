@@ -5,6 +5,7 @@ struct SettingsView: View {
     @State private var isRecordingHotkey = false
     @State private var hotkeyLabel = HotkeyManager.shared.currentShortcutLabel
     @AppStorage("cleanup.trimStemWhitespace") private var trimStemWhitespace = false
+    @AppStorage("eml.useDateHeader") private var emlUseDateHeader = true
 
     var body: some View {
         Form {
@@ -21,6 +22,10 @@ struct SettingsView: View {
 
             Section("Cleanup") {
                 Toggle("Remove space before extension", isOn: $trimStemWhitespace)
+            }
+
+            Section("Email (.eml)") {
+                Toggle("Extract date from email headers", isOn: $emlUseDateHeader)
             }
 
             if permissions.finderAutomationStatus == .denied {
