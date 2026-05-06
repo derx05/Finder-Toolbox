@@ -25,6 +25,7 @@ final class AppController: ObservableObject {
     static let shared = AppController()
 
     @Published private(set) var isRenaming = false
+    @Published private(set) var lastBatch: [RenameRecord] = []
 
     private let executor = RenameExecutor()
     private var progressController: ProgressWindowController?
@@ -41,7 +42,6 @@ final class AppController: ObservableObject {
         isRenaming = true
         defer { isRenaming = false }
 
-        // Adaptive progress: reveal panel only if rename takes > 2 s
         let progressTask = Task { @MainActor [weak self] in
             try await Task.sleep(for: .seconds(2))
             let controller = ProgressWindowController()
@@ -60,6 +60,23 @@ final class AppController: ObservableObject {
             return
         }
 
+        lastBatch = summary.outcomes.compactMap { outcome in
+            if case .renamed(let from, let to) = outcome {
+                return RenameRecord(renamedURL: to, originalName: from.lastPathComponent)
+            }
+            return nil
+        }
+
+        SummaryDialog.showIfNeeded(summary)
+    }
+
+    func undoLastRename() async {
+        guard !isRenaming, !lastBatch.isEmpty else { return }
+        isRenaming = true
+        defer { isRenaming = false }
+        let records = lastBatch
+        lastBatch = []
+        let summary = await executor.reverseRename(records)
         SummaryDialog.showIfNeeded(summary)
     }
 }
@@ -74,6 +91,14 @@ struct MenuBarContentView: View {
             Task { await controller.performRename() }
         }
         .disabled(controller.isRenaming)
+
+        if !controller.lastBatch.isEmpty {
+            let count = controller.lastBatch.count
+            Button("Undo Last Rename (\(count) \(count == 1 ? "file" : "files"))") {
+                Task { await controller.undoLastRename() }
+            }
+            .disabled(controller.isRenaming)
+        }
 
         Divider()
 

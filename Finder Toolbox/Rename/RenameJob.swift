@@ -1,5 +1,10 @@
 import Foundation
 
+struct RenameRecord: Sendable {
+    let renamedURL: URL      // current path (post-rename)
+    let originalName: String // filename to restore on undo
+}
+
 enum RenameOutcome: Sendable {
     case renamed(from: URL, to: URL)
     case skipped(URL, reason: SkipReason)

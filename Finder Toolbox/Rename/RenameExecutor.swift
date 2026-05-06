@@ -37,6 +37,12 @@ actor RenameExecutor {
         }
     }
 
+    func reverseRename(_ records: [RenameRecord]) async -> BatchSummary {
+        let renames = records.map { (from: $0.renamedURL, to: $0.originalName) }
+        let outcomes = await bridge.batchRename(renames)
+        return BatchSummary(outcomes: outcomes)
+    }
+
     // MARK: - Private
 
     private func canonicalName(for url: URL) -> String {
