@@ -3,26 +3,30 @@ import SwiftUI
 // MARK: - Root
 
 private enum SettingsPage: Hashable {
-    case home
+    case general
     case fileRenaming
+    case about
 }
 
 struct SettingsView: View {
-    @State private var selection: SettingsPage? = .home
+    @State private var selection: SettingsPage? = .general
 
     var body: some View {
         NavigationSplitView {
             SidebarView(selection: $selection)
+                //.toolbar(removing: .sidebarToggle)
         } detail: {
             switch selection {
-            case .home, nil:
-                HomeSettingsView()
+            case .general, nil:
+                GeneralSettingsView()
             case .fileRenaming:
                 FileRenamingSettingsView()
+            case .about:
+                AboutView()
             }
         }
-        .frame(width: 640, height: 430)
-        .navigationSplitViewStyle(.balanced)
+        .navigationSplitViewStyle(.prominentDetail)
+        
     }
 }
 
@@ -33,8 +37,8 @@ private struct SidebarView: View {
 
     var body: some View {
         List(selection: $selection) {
-            NavigationLink(value: SettingsPage.home) {
-                Label("Home", systemImage: "house")
+            NavigationLink(value: SettingsPage.general) {
+                Label("General", systemImage: "gearshape")
             }
 
             Section("Features") {
@@ -42,54 +46,57 @@ private struct SidebarView: View {
                     Label("File Renaming", systemImage: "pencil.and.outline")
                 }
             }
+
+            Section("Other") {
+                NavigationLink(value: SettingsPage.about) {
+                    Label("About", systemImage: "info.circle")
+                }
+            }
         }
+        .navigationTitle("Finder Toolbox")
         .navigationSplitViewColumnWidth(160)
     }
 }
 
-// MARK: - Home page
+// MARK: - General page
 
-private struct HomeSettingsView: View {
+private struct GeneralSettingsView: View {
+    var body: some View {
+        Form {
+            // Placeholder — general settings go here in future
+        }
+        .formStyle(.grouped)
+        .overlay {
+            if true {
+                Text("No general settings yet.")
+                    .foregroundStyle(.tertiary)
+                    .font(.subheadline)
+            }
+        }
+    }
+}
+
+// MARK: - About page
+
+private struct AboutView: View {
     private let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
     private let build   = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                VStack(spacing: 10) {
-                    Image(nsImage: NSApp.applicationIconImage)
-                        .resizable()
-                        .frame(width: 80, height: 80)
+        VStack(spacing: 10) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 80, height: 80)
 
-                    Text("Finder Toolbox")
-                        .font(.title2)
-                        .fontWeight(.semibold)
+            Text("Finder Toolbox")
+                .font(.title2)
+                .fontWeight(.semibold)
 
-                    Text("Version \(version) (\(build))")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.top, 36)
-                .padding(.bottom, 32)
-
-                Divider()
-                    .padding(.horizontal, 24)
-
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("General")
-                        .font(.headline)
-                        .padding(.bottom, 12)
-
-                    Text("No general settings yet.")
-                        .foregroundStyle(.tertiary)
-                        .font(.subheadline)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 24)
-                .padding(.top, 24)
-            }
+            Text("Version \(version) (\(build))")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -126,7 +133,8 @@ private struct FileRenamingSettingsView: View {
                         InfoPopover(
                             title: "Remove space before extension",
                             detail: "Strips a trailing space from the filename stem before renaming.",
-                            example: "\"Report .pdf\"  →  \"Report.pdf\""
+                            exampleBefore: "\"Report .pdf\"",
+                            exampleAfter: "\"Report.pdf\""
                         )
                     }
                 }
@@ -143,7 +151,8 @@ private struct FileRenamingSettingsView: View {
                         InfoPopover(
                             title: "Email date extraction",
                             detail: "Reads the Date: header from the .eml file and uses it as the file's date prefix instead of the filesystem modification date.",
-                            example: "\"Invoice.eml\"  →  \"2024-03-15 Invoice.eml\""
+                            exampleBefore: "\"Invoice.eml\"",
+                            exampleAfter: "\"2024-03-15 Invoice.eml\""
                         )
                     }
                 }
@@ -175,7 +184,8 @@ private struct FileRenamingSettingsView: View {
 private struct InfoPopover: View {
     let title: String
     let detail: String
-    let example: String
+    let exampleBefore: String
+    let exampleAfter: String
 
     @State private var isShowing = false
 
@@ -199,12 +209,19 @@ private struct InfoPopover: View {
 
                 Divider()
 
-                Text(example)
-                    .font(.system(.subheadline, design: .monospaced))
-                    .foregroundStyle(.primary)
+                HStack(spacing: 8) {
+                    Text(exampleBefore)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    Image(systemName: "arrow.right")
+                        .foregroundStyle(.secondary)
+                        .imageScale(.small)
+                    Text(exampleAfter)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .font(.system(.subheadline, design: .monospaced))
             }
             .padding(16)
-            .frame(width: 280)
+            .frame(width: 300)
         }
     }
 }
