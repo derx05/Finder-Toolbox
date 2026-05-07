@@ -15,6 +15,7 @@ struct FinderToolboxApp: App {
         Settings {
             SettingsView()
         }
+        .windowResizability(.contentMinSize)
     }
 }
 
@@ -108,8 +109,6 @@ struct MenuBarContentView: View {
             NSApp.activate(ignoringOtherApps: true)
             openSettings()
         }
-
-        Divider()
 
         Button("Quit Finder Toolbox") {
             NSApplication.shared.terminate(nil)

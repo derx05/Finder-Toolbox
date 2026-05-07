@@ -19,6 +19,7 @@ final class PermissionsManager: ObservableObject {
     // Runs a harmless script to probe permission state (and trigger the system prompt on first use).
     // Call from a background Task; NSAppleScript is synchronous.
     func checkPermission() async {
+        guard finderAutomationStatus == .unknown else { return }
         let status = await Task.detached(priority: .userInitiated) {
             let source = "tell application \"Finder\" to get version"
             guard let script = NSAppleScript(source: source) else { return Status.unknown }

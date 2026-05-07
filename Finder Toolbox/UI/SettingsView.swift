@@ -26,8 +26,20 @@ struct SettingsView: View {
             }
         }
         .navigationSplitViewStyle(.prominentDetail)
-        
+        .frame(minWidth: 620, minHeight: 400)
+        .background(ResizableWindowAccessor())
     }
+}
+
+private struct ResizableWindowAccessor: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            view.window?.styleMask.insert(.resizable)
+        }
+        return view
+    }
+    func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
 // MARK: - Sidebar
@@ -81,22 +93,76 @@ private struct GeneralSettingsView: View {
 private struct AboutView: View {
     private let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
     private let build   = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
+    private let year    = Calendar.current.component(.year, from: Date())
+
+    @AppStorage("updates.autoCheck")    private var autoCheck: Bool   = false
+    @AppStorage("updates.autoInstall")  private var autoInstall: Bool  = false
+    @AppStorage("updates.lastChecked")  private var lastCheckedRaw: Double = 0
+
+    private var lastCheckedLabel: String {
+        guard lastCheckedRaw > 0 else { return "Never" }
+        return Date(timeIntervalSince1970: lastCheckedRaw)
+            .formatted(date: .abbreviated, time: .shortened)
+    }
 
     var body: some View {
-        VStack(spacing: 10) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .frame(width: 80, height: 80)
+        Form {
+            // Identity
+            Section {
+                HStack(spacing: 16) {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .frame(width: 72, height: 72)
 
-            Text("Finder Toolbox")
-                .font(.title2)
-                .fontWeight(.semibold)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Finder Toolbox")
+                            .font(.title)
+                            .fontWeight(.bold)
 
-            Text("Version \(version) (\(build))")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                        Text("Version \(version) (\(build))")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        Text("© \(year) Daniel Ammann")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .padding(.vertical, 6)
+            }
+
+            // Updates
+            Section("Updates") {
+                Toggle("Automatically check for updates", isOn: $autoCheck.animation())
+                    .toggleStyle(.switch)
+
+                if autoCheck {
+                    Toggle("Automatically install updates", isOn: $autoInstall)
+                        .toggleStyle(.switch)
+                }
+
+                LabeledContent("Last checked") {
+                    Text(lastCheckedLabel)
+                        .foregroundStyle(.secondary)
+                }
+
+                // TODO: wire up once the GitHub release feed is live
+                Button("Check for Updates") {}
+                    .disabled(true)
+            }
+
+            // Links & quit
+            Section {
+                // TODO: update URL once the repo is public
+                Link("View on GitHub",
+                     destination: URL(string: "https://github.com/danielammann/finder-toolbox")!)
+
+                Button("Quit Finder Toolbox", role: .destructive) {
+                    NSApplication.shared.terminate(nil)
+                }
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .formStyle(.grouped)
     }
 }
 
