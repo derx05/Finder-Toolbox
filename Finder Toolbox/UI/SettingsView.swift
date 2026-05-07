@@ -1,6 +1,101 @@
 import SwiftUI
 
+// MARK: - Root
+
+private enum SettingsPage: Hashable {
+    case home
+    case fileRenaming
+}
+
 struct SettingsView: View {
+    @State private var selection: SettingsPage? = .home
+
+    var body: some View {
+        NavigationSplitView {
+            SidebarView(selection: $selection)
+        } detail: {
+            switch selection {
+            case .home, nil:
+                HomeSettingsView()
+            case .fileRenaming:
+                FileRenamingSettingsView()
+            }
+        }
+        .frame(width: 640, height: 430)
+        .navigationSplitViewStyle(.balanced)
+    }
+}
+
+// MARK: - Sidebar
+
+private struct SidebarView: View {
+    @Binding var selection: SettingsPage?
+
+    var body: some View {
+        List(selection: $selection) {
+            NavigationLink(value: SettingsPage.home) {
+                Label("Home", systemImage: "house")
+            }
+
+            Section("Features") {
+                NavigationLink(value: SettingsPage.fileRenaming) {
+                    Label("File Renaming", systemImage: "pencil.and.outline")
+                }
+            }
+        }
+        .navigationSplitViewColumnWidth(160)
+    }
+}
+
+// MARK: - Home page
+
+private struct HomeSettingsView: View {
+    private let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
+    private let build   = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                VStack(spacing: 10) {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .frame(width: 80, height: 80)
+
+                    Text("Finder Toolbox")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+
+                    Text("Version \(version) (\(build))")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 36)
+                .padding(.bottom, 32)
+
+                Divider()
+                    .padding(.horizontal, 24)
+
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("General")
+                        .font(.headline)
+                        .padding(.bottom, 12)
+
+                    Text("No general settings yet.")
+                        .foregroundStyle(.tertiary)
+                        .font(.subheadline)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 24)
+                .padding(.top, 24)
+            }
+        }
+    }
+}
+
+// MARK: - File Renaming settings page
+
+private struct FileRenamingSettingsView: View {
     @StateObject private var permissions = PermissionsManager.shared
     @State private var isRecordingHotkey = false
     @State private var hotkeyLabel = HotkeyManager.shared.currentShortcutLabel
@@ -9,7 +104,7 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Rename") {
+            Section("Hotkey") {
                 HotkeyRow(
                     label: hotkeyLabel,
                     isRecording: $isRecordingHotkey,
@@ -21,11 +116,37 @@ struct SettingsView: View {
             }
 
             Section("Cleanup") {
-                Toggle("Remove space before extension", isOn: $trimStemWhitespace)
+                LabeledContent {
+                    Toggle("", isOn: $trimStemWhitespace)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("Remove space before extension")
+                        InfoPopover(
+                            title: "Remove space before extension",
+                            detail: "Strips a trailing space from the filename stem before renaming.",
+                            example: "\"Report .pdf\"  →  \"Report.pdf\""
+                        )
+                    }
+                }
             }
 
             Section("Email (.eml)") {
-                Toggle("Extract date from email headers", isOn: $emlUseDateHeader)
+                LabeledContent {
+                    Toggle("", isOn: $emlUseDateHeader)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("Extract date from email headers")
+                        InfoPopover(
+                            title: "Email date extraction",
+                            detail: "Reads the Date: header from the .eml file and uses it as the file's date prefix instead of the filesystem modification date.",
+                            example: "\"Invoice.eml\"  →  \"2024-03-15 Invoice.eml\""
+                        )
+                    }
+                }
             }
 
             if permissions.finderAutomationStatus == .denied {
@@ -43,13 +164,52 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 380)
-        .padding(.vertical)
         .task {
             await permissions.checkPermission()
         }
     }
 }
+
+// MARK: - Info popover
+
+private struct InfoPopover: View {
+    let title: String
+    let detail: String
+    let example: String
+
+    @State private var isShowing = false
+
+    var body: some View {
+        Button {
+            isShowing.toggle()
+        } label: {
+            Image(systemName: "info.circle")
+                .foregroundStyle(.secondary)
+                .imageScale(.small)
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $isShowing, arrowEdge: .trailing) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(title)
+                    .font(.headline)
+
+                Text(detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Divider()
+
+                Text(example)
+                    .font(.system(.subheadline, design: .monospaced))
+                    .foregroundStyle(.primary)
+            }
+            .padding(16)
+            .frame(width: 280)
+        }
+    }
+}
+
+// MARK: - Hotkey recorder
 
 private struct HotkeyRow: View {
     let label: String
@@ -68,11 +228,11 @@ private struct HotkeyRow: View {
                 },
                 onCancel: { isRecording = false }
             )
+            .frame(width: 140)
         }
     }
 }
 
-// Tap to start recording, press a key combo to commit, Esc to cancel.
 private struct HotkeyRecorderView: NSViewRepresentable {
     let displayLabel: String
     let isRecording: Bool
@@ -121,7 +281,7 @@ private struct HotkeyRecorderView: NSViewRepresentable {
         override func keyDown(with event: NSEvent) {
             guard isRecording else { super.keyDown(with: event); return }
 
-            if event.keyCode == 53 {  // kVK_Escape = 53
+            if event.keyCode == 53 {  // kVK_Escape
                 (target as? Coordinator)?.onCancel?()
                 return
             }
