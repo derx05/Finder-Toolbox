@@ -10,9 +10,10 @@ private enum SettingsPage: Hashable {
 
 struct SettingsView: View {
     @State private var selection: SettingsPage? = .general
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView(selection: $selection)
                 //.toolbar(removing: .sidebarToggle)
         } detail: {
@@ -33,6 +34,8 @@ struct SettingsView: View {
         }
         .navigationSplitViewStyle(.prominentDetail)
         .frame(minWidth: 620, minHeight: 400)
+        .onAppear { columnVisibility = .all }
+        .onChange(of: columnVisibility) { columnVisibility = .all }
         .background(ResizableWindowAccessor())
         .onDisappear {
             DockModeManager.shared.settingsDidClose()
@@ -75,7 +78,7 @@ private struct SidebarView: View {
             }
         }
         .navigationTitle("Finder Toolbox")
-        .navigationSplitViewColumnWidth(160)
+        .navigationSplitViewColumnWidth(min: 160, ideal: 160, max: 160)
     }
 }
 
