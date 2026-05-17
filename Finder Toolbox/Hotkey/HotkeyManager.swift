@@ -31,9 +31,9 @@ final class HotkeyManager {
 
     private init() {
         let d = UserDefaults.standard
-        keyCode = d.object(forKey: "hk.keyCode") as? Int ?? HotkeyManager.defaultKeyCode
+        keyCode = d.object(forKey: DefaultsKeys.hotkeyKeyCode) as? Int ?? HotkeyManager.defaultKeyCode
         // Migration guard: Carbon modifiers are ≤ 8192; old NSEvent rawValues are 100 000+.
-        let raw = d.object(forKey: "hk.modifiers") as? Int ?? 0
+        let raw = d.object(forKey: DefaultsKeys.hotkeyModifiers) as? Int ?? 0
         carbonModifiers = (raw > 0 && raw <= 8192)
             ? UInt32(raw)
             : HotkeyManager.defaultCarbonModifiers
@@ -52,8 +52,8 @@ final class HotkeyManager {
         let newCarbonMods = Self.carbonModifiers(from: newMods)
         keyCode = newKeyInt
         carbonModifiers = newCarbonMods
-        UserDefaults.standard.set(newKeyInt, forKey: "hk.keyCode")
-        UserDefaults.standard.set(Int(newCarbonMods), forKey: "hk.modifiers")
+        UserDefaults.standard.set(newKeyInt, forKey: DefaultsKeys.hotkeyKeyCode)
+        UserDefaults.standard.set(Int(newCarbonMods), forKey: DefaultsKeys.hotkeyModifiers)
         registerHotKey(keyCode: newKeyInt, modifiers: newCarbonMods)
     }
 

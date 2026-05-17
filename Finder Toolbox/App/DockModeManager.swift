@@ -30,7 +30,7 @@ enum DockMode: String, CaseIterable {
 final class DockModeManager: ObservableObject {
     static let shared = DockModeManager()
 
-    private static let defaultsKey = "app.dockMode"
+    private static let defaultsKey = DefaultsKeys.dockMode
 
     @Published var mode: DockMode {
         didSet {

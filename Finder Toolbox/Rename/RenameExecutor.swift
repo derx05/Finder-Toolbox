@@ -49,13 +49,13 @@ actor RenameExecutor {
         let ext = url.pathExtension
         var stem = url.deletingPathExtension().lastPathComponent
 
-        if UserDefaults.standard.bool(forKey: "cleanup.trimStemWhitespace") {
+        if UserDefaults.standard.bool(forKey: DefaultsKeys.cleanupTrimStem) {
             stem = stem.trimmingCharacters(in: .whitespaces)
         }
 
         // .eml: use the date from the email headers rather than the filename or today.
         if ext.lowercased() == "eml",
-           UserDefaults.standard.bool(forKey: "eml.useDateHeader"),
+           UserDefaults.standard.bool(forKey: DefaultsKeys.emlUseDateHeader),
            let emailDate = EmlDateExtractor.extractDate(from: url) {
             // Strip any existing date prefix from the stem so we don't double-date.
             let remainder = DateDetector.detect(in: stem)?.remainder ?? stem

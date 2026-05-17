@@ -47,7 +47,16 @@ enum EmlDateExtractor {
     }
 
     nonisolated private static func parseRFC2822(_ raw: String) -> DateComponents? {
-        let s = raw.trimmingCharacters(in: .whitespaces)
+        // RFC 2822 §3.3 allows an optional comment after the numeric offset
+        // ("Wed, 03 May 2024 10:30:45 +0200 (CEST)"). Strip any trailing "(…)"
+        // so DateFormatter's strict patterns match — the numeric offset is
+        // authoritative anyway.
+        let trimmed = raw.replacingOccurrences(
+            of: #"\s*\([^)]*\)\s*$"#,
+            with: "",
+            options: .regularExpression
+        )
+        let s = trimmed.trimmingCharacters(in: .whitespaces)
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
 
