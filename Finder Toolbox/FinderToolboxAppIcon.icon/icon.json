@@ -1,0 +1,99 @@
+{
+  "fill" : {
+    "linear-gradient" : [
+      "extended-gray:1.00000,1.00000",
+      "extended-gray:0.75000,1.00000"
+    ]
+  },
+  "groups" : [
+    {
+      "blur-material-specializations" : [
+        {
+          "value" : 0.37
+        },
+        {
+          "appearance" : "light",
+          "value" : 0.12
+        },
+        {
+          "appearance" : "tinted",
+          "value" : 0.06
+        }
+      ],
+      "layers" : [
+        {
+          "image-name" : "Finder Toolbox Slider Item.svg",
+          "name" : "Finder Toolbox Slider Item",
+          "position" : {
+            "scale" : 0.5,
+            "translation-in-points" : [
+              265,
+              265
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "specular" : false,
+      "translucency-specializations" : [
+        {
+          "value" : {
+            "enabled" : true,
+            "value" : 0.52
+          }
+        },
+        {
+          "appearance" : "light",
+          "value" : {
+            "enabled" : true,
+            "value" : 0.34
+          }
+        },
+        {
+          "appearance" : "tinted",
+          "value" : {
+            "enabled" : true,
+            "value" : 0.73
+          }
+        }
+      ]
+    },
+    {
+      "blend-mode" : "normal",
+      "blur-material" : null,
+      "hidden" : false,
+      "layers" : [
+        {
+          "image-name" : "Finder Toolbox Background.svg",
+          "name" : "Finder Toolbox Background",
+          "position" : {
+            "scale" : 1.77,
+            "translation-in-points" : [
+              0,
+              31
+            ]
+          }
+        }
+      ],
+      "lighting" : "combined",
+      "opacity" : 1,
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : [
+      "macOS"
+    ]
+  }
+}
