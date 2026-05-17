@@ -19,10 +19,16 @@ struct SettingsView: View {
             switch selection {
             case .general, nil:
                 GeneralSettingsView()
+                    .navigationTitle("")
+                    .toolbar(.hidden)
             case .fileRenaming:
                 FileRenamingSettingsView()
+                    .navigationTitle("")
+                    .toolbar(.hidden)
             case .about:
                 AboutView()
+                    .navigationTitle("")
+                    .toolbar(.hidden)
             }
         }
         .navigationSplitViewStyle(.prominentDetail)
@@ -93,10 +99,11 @@ private struct GeneralSettingsView: View {
 private struct AboutView: View {
     private let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
     private let build   = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
-    private let year    = Calendar.current.component(.year, from: Date())
+    private let year    = String(format: "%d", Calendar.current.component(.year, from: Date()))
+    
 
-    @AppStorage("updates.autoCheck")    private var autoCheck: Bool   = false
-    @AppStorage("updates.autoInstall")  private var autoInstall: Bool  = false
+    @AppStorage("updates.autoCheck")    private var autoCheck: Bool    = false
+    @AppStorage("updates.autoDownload") private var autoDownload: Bool = false
     @AppStorage("updates.lastChecked")  private var lastCheckedRaw: Double = 0
 
     private var lastCheckedLabel: String {
@@ -109,60 +116,88 @@ private struct AboutView: View {
         Form {
             // Identity
             Section {
-                HStack(spacing: 16) {
+                HStack(alignment: .center, spacing: 28) {
                     Image(nsImage: NSApp.applicationIconImage)
                         .resizable()
-                        .frame(width: 72, height: 72)
+                        .frame(width: 128, height: 128)
 
-                    VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: 6) {
                         Text("Finder Toolbox")
-                            .font(.title)
-                            .fontWeight(.bold)
+                            .font(.system(size: 32, weight: .bold))
 
                         Text("Version \(version) (\(build))")
-                            .font(.subheadline)
+                            .font(.title3)
                             .foregroundStyle(.secondary)
 
                         Text("© \(year) Daniel Ammann")
-                            .font(.caption)
+                            .font(.body)
                             .foregroundStyle(.tertiary)
                     }
                 }
-                .padding(.vertical, 6)
-            }
-
-            // Updates
-            Section("Updates") {
-                Toggle("Automatically check for updates", isOn: $autoCheck.animation())
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 28)
+                
+                Toggle("Automatically check for updates", isOn: $autoCheck)
                     .toggleStyle(.switch)
 
-                if autoCheck {
-                    Toggle("Automatically install updates", isOn: $autoInstall)
-                        .toggleStyle(.switch)
-                }
+                Toggle("Automatically download updates", isOn: $autoDownload)
+                    .toggleStyle(.switch)
 
-                LabeledContent("Last checked") {
-                    Text(lastCheckedLabel)
+                HStack {
+                    Button("Check for Updates") {}
+                        .disabled(true)
+                    Spacer()
+                    Text("Last checked: \(lastCheckedLabel)")
                         .foregroundStyle(.secondary)
+                        .font(.subheadline)
                 }
-
-                // TODO: wire up once the GitHub release feed is live
-                Button("Check for Updates") {}
-                    .disabled(true)
             }
 
             // Links & quit
             Section {
-                // TODO: update URL once the repo is public
-                Link("View on GitHub",
-                     destination: URL(string: "https://github.com/danielammann/finder-toolbox")!)
+                HStack {
+                    Button("Quit Finder Toolbox", role: .destructive) {
+                        NSApplication.shared.terminate(nil)
+                    }
+                    .buttonStyle(HoverButtonStyle(tint: .red))
 
-                Button("Quit Finder Toolbox", role: .destructive) {
-                    NSApplication.shared.terminate(nil)
+                    Spacer()
+
+                    // TODO: update URL once the repo is public
+                    Button {
+                        NSWorkspace.shared.open(URL(string: "https://github.com/danielammann/finder-toolbox")!)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "chevron.left.forwardslash.chevron.right")
+                                .imageScale(.small)
+                            Text("GitHub")
+                        }
+                    }
+                    .buttonStyle(HoverButtonStyle(tint: .secondary))
                 }
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+// MARK: - Hover button style
+
+private struct HoverButtonStyle: ButtonStyle {
+    var tint: Color = .primary
+    @State private var isHovered = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(tint)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill((isHovered || configuration.isPressed) ? tint.opacity(0.1) : Color.clear)
+            )
+            .animation(.easeInOut(duration: 0.12), value: isHovered)
+            .onHover { isHovered = $0 }
     }
 }
 

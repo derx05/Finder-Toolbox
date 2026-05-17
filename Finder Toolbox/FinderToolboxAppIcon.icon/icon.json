@@ -7,7 +7,19 @@
   },
   "groups" : [
     {
-      "blur-material" : 0.11,
+      "blur-material-specializations" : [
+        {
+          "value" : 0.37
+        },
+        {
+          "appearance" : "light",
+          "value" : 0.12
+        },
+        {
+          "appearance" : "tinted",
+          "value" : 0.06
+        }
+      ],
       "layers" : [
         {
           "image-name" : "Finder Toolbox Slider Item.svg",
@@ -30,14 +42,21 @@
         {
           "value" : {
             "enabled" : true,
-            "value" : 0.62
+            "value" : 0.52
           }
         },
         {
           "appearance" : "light",
           "value" : {
             "enabled" : true,
-            "value" : 0.76
+            "value" : 0.34
+          }
+        },
+        {
+          "appearance" : "tinted",
+          "value" : {
+            "enabled" : true,
+            "value" : 0.73
           }
         }
       ]
