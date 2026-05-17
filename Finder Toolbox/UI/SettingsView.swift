@@ -83,9 +83,22 @@ private struct SidebarView: View {
 
 private struct GeneralSettingsView: View {
     @ObservedObject private var dockManager = DockModeManager.shared
+    @AppStorage("menuBar.showIcon") private var showMenuBarIcon = true
 
     var body: some View {
         Form {
+            Section("Menu bar icon") {
+                Toggle("Show menu bar icon", isOn: $showMenuBarIcon)
+                    .toggleStyle(.switch)
+
+                if !showMenuBarIcon {
+                    Text("When hidden, re-launch the app via Spotlight or the Applications folder to open Settings.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             Section("Dock icon") {
                 Picker(selection: $dockManager.mode) {
                     ForEach(DockMode.allCases, id: \.self) { mode in

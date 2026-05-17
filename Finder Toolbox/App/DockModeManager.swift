@@ -8,7 +8,7 @@ enum DockMode: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .headless:     "Menu bar only"
+        case .headless:     "Headless mode"
         case .settingsOnly: "Show while Settings is open"
         case .normal:       "Always visible"
         }
