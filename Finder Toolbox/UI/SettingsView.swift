@@ -34,6 +34,9 @@ struct SettingsView: View {
         .navigationSplitViewStyle(.prominentDetail)
         .frame(minWidth: 620, minHeight: 400)
         .background(ResizableWindowAccessor())
+        .onDisappear {
+            DockModeManager.shared.settingsDidClose()
+        }
     }
 }
 
@@ -79,18 +82,28 @@ private struct SidebarView: View {
 // MARK: - General page
 
 private struct GeneralSettingsView: View {
+    @ObservedObject private var dockManager = DockModeManager.shared
+
     var body: some View {
         Form {
-            // Placeholder — general settings go here in future
-        }
-        .formStyle(.grouped)
-        .overlay {
-            if true {
-                Text("No general settings yet.")
-                    .foregroundStyle(.tertiary)
-                    .font(.subheadline)
+            Section("Dock icon") {
+                Picker(selection: $dockManager.mode) {
+                    ForEach(DockMode.allCases, id: \.self) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                } label: {
+                    EmptyView()
+                }
+                .pickerStyle(.radioGroup)
+                .labelsHidden()
+
+                Text(dockManager.mode.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .formStyle(.grouped)
     }
 }
 
@@ -157,7 +170,7 @@ private struct AboutView: View {
             Section {
                 HStack {
                     Button("Quit Finder Toolbox", role: .destructive) {
-                        NSApplication.shared.terminate(nil)
+                        DockModeManager.shared.explicitQuit()
                     }
                     .buttonStyle(HoverButtonStyle(tint: .red))
 

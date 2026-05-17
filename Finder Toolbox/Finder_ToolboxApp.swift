@@ -1,14 +1,44 @@
 import SwiftUI
 import Combine
 
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    // Never quit automatically when the last window closes — the app lives in
+    // the menu bar regardless of mode.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
+    // In headless/settingsOnly modes, Cmd+Q and the system Quit menu item
+    // close open windows but keep the app running. Only an explicit call to
+    // DockModeManager.explicitQuit() (our "Quit" buttons) terminates.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        let manager = DockModeManager.shared
+        if manager.mode == .normal || manager.isExplicitQuit {
+            return .terminateNow
+        }
+        sender.windows.filter(\.isVisible).forEach { $0.close() }
+        return .terminateCancel
+    }
+}
+
 @main
 struct FinderToolboxApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var controller = AppController.shared
 
+    private static let menuBarIcon: NSImage = {
+        let image = NSImage(named: "menubar_icon") ?? NSImage()
+        image.size = NSSize(width: 18, height: 18)
+        image.isTemplate = true
+        return image
+    }()
+
     var body: some Scene {
-        MenuBarExtra("Finder Toolbox", systemImage: "wand.and.stars") {
+        MenuBarExtra {
             MenuBarContentView()
                 .environmentObject(controller)
+        } label: {
+            Image(nsImage: Self.menuBarIcon)
         }
         .menuBarExtraStyle(.menu)
 
@@ -106,12 +136,13 @@ struct MenuBarContentView: View {
         Divider()
 
         Button("Settings…") {
+            DockModeManager.shared.willOpenSettings()
             NSApp.activate(ignoringOtherApps: true)
             openSettings()
         }
 
         Button("Quit Finder Toolbox") {
-            NSApplication.shared.terminate(nil)
+            DockModeManager.shared.explicitQuit()
         }
     }
 }
