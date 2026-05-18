@@ -36,6 +36,13 @@ struct AboutPage: View {
                         Text("© \(year) Daniel Ammann")
                             .font(.body)
                             .foregroundStyle(.tertiary)
+
+                        if BuildConfiguration.isDebug {
+                            Text("Debug Build — development session")
+                                .font(.callout.weight(.semibold))
+                                .foregroundStyle(.red)
+                                .padding(.top, 4)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity)

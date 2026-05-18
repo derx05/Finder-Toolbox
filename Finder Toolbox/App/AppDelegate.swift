@@ -10,9 +10,28 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Debug builds launched from Xcode while a release copy is already
+        // running would otherwise compete for the global hotkey. Terminate
+        // any sibling instances first.
+        if BuildConfiguration.isDebug {
+            terminateOtherInstances()
+        }
+
         // Force-instantiate so DockModeManager applies the persisted
         // activation policy (.regular vs .accessory) before any window appears.
         _ = DockModeManager.shared
+    }
+
+    private func terminateOtherInstances() {
+        guard let bundleID = Bundle.main.bundleIdentifier else { return }
+        let me = ProcessInfo.processInfo.processIdentifier
+        let others = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+            .filter { $0.processIdentifier != me }
+        for app in others {
+            if !app.terminate() {
+                app.forceTerminate()
+            }
+        }
     }
 
     /// Keep the app alive when the user closes Settings — the hotkey is the
