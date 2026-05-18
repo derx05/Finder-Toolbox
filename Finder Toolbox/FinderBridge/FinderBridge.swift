@@ -75,8 +75,13 @@ actor FinderBridge {
     private func tryBatchScript(_ renames: [(from: URL, to: String)]) -> [RenameOutcome]? {
         var lines = ["tell application \"Finder\""]
         for r in renames {
-            // "as alias" coerces the file reference to an alias that Finder's rename command accepts.
-            lines.append("  set name of (POSIX file \(asString(r.from.path)) as alias) to \(asString(r.to))")
+            // Reference the item via its parent folder + filename rather than coercing the
+            // POSIX path to an alias. Network volumes (NAS) can produce alias values that
+            // Finder refuses to rename ("Can't set alias … to …"); going through the
+            // parent folder avoids alias resolution entirely. See issue #8.
+            let parent = r.from.deletingLastPathComponent().path
+            let name = r.from.lastPathComponent
+            lines.append("  set name of (item \(asString(name)) of folder (POSIX file \(asString(parent)))) to \(asString(r.to))")
         }
         lines.append("end tell")
 
@@ -92,9 +97,11 @@ actor FinderBridge {
     }
 
     private func renameSingle(from url: URL, to newName: String) throws {
+        let parent = url.deletingLastPathComponent().path
+        let name = url.lastPathComponent
         let source = """
             tell application "Finder"
-                set name of (POSIX file \(asString(url.path)) as alias) to \(asString(newName))
+                set name of (item \(asString(name)) of folder (POSIX file \(asString(parent)))) to \(asString(newName))
             end tell
         """
         try runScript(source)
