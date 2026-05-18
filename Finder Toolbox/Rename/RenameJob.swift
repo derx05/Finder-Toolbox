@@ -1,5 +1,37 @@
 import Foundation
 
+/// How a rename batch treats folders in the Finder selection.
+///
+/// - `flat`: rename the folder itself (e.g. add a date prefix) but leave its contents alone.
+/// - `recursive`: walk into the folder, renaming all descendants (files and subfolders)
+///   in addition to the folder itself.
+///
+/// `FolderModePreference` is the user-visible setting (which includes `.ask`); this enum
+/// is the *resolved* mode that an actual batch runs in.
+nonisolated enum FolderMode: Sendable {
+    case flat
+    case recursive
+}
+
+/// Persisted in `UserDefaults` under `DefaultsKeys.folderMode`. The runtime mode the
+/// rename batch executes in is `FolderMode`; this type just adds an "ask the user" option
+/// for the settings UI.
+enum FolderModePreference: String, CaseIterable, Sendable {
+    case ask
+    case flat
+    case recursive
+
+    static let `default`: FolderModePreference = .ask
+
+    static func current() -> FolderModePreference {
+        guard let raw = UserDefaults.standard.string(forKey: DefaultsKeys.folderMode),
+              let value = FolderModePreference(rawValue: raw) else {
+            return .default
+        }
+        return value
+    }
+}
+
 struct RenameRecord: Sendable {
     let renamedURL: URL      // current path (post-rename)
     let originalName: String // filename to restore on undo

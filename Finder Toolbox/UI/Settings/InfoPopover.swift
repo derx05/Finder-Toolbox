@@ -5,10 +5,17 @@ import SwiftUI
 struct InfoPopover: View {
     let title: String
     let detail: String
-    let exampleBefore: String
-    let exampleAfter: String
+    let exampleBefore: String?
+    let exampleAfter: String?
 
     @State private var isShowing = false
+
+    init(title: String, detail: String, exampleBefore: String? = nil, exampleAfter: String? = nil) {
+        self.title = title
+        self.detail = detail
+        self.exampleBefore = exampleBefore
+        self.exampleAfter = exampleAfter
+    }
 
     var body: some View {
         Button {
@@ -28,18 +35,20 @@ struct InfoPopover: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
-                Divider()
+                if let before = exampleBefore, let after = exampleAfter {
+                    Divider()
 
-                HStack(spacing: 8) {
-                    Text(exampleBefore)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                    Image(systemName: "arrow.right")
-                        .foregroundStyle(.secondary)
-                        .imageScale(.small)
-                    Text(exampleAfter)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    HStack(spacing: 8) {
+                        Text(before)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                        Image(systemName: "arrow.right")
+                            .foregroundStyle(.secondary)
+                            .imageScale(.small)
+                        Text(after)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .font(.system(.subheadline, design: .monospaced))
                 }
-                .font(.system(.subheadline, design: .monospaced))
             }
             .padding(16)
             .frame(width: 300)
