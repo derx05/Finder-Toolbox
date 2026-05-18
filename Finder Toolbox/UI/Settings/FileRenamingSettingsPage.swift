@@ -102,7 +102,7 @@ struct FileRenamingSettingsPage: View {
                         in: 1...10_000,
                         step: 10
                     ) {
-                        Text("\(recursiveWarnThreshold) files")
+                        Text("\(recursiveWarnThreshold) items")
                             .monospacedDigit()
                             .frame(minWidth: 80, alignment: .trailing)
                     }
@@ -111,7 +111,7 @@ struct FileRenamingSettingsPage: View {
                         Text("Confirm recursive rename above")
                         InfoPopover(
                             title: "Recursive batch confirmation",
-                            detail: "Recursive batches larger than this file count require an extra confirmation dialog. Set higher if you regularly rename large folders and find the prompt annoying.",
+                            detail: "Recursive batches larger than this item count (files + folders combined) require an extra confirmation dialog. Set higher if you regularly rename large folders and find the prompt annoying.",
                             exampleBefore: nil,
                             exampleAfter: nil
                         )

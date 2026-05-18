@@ -22,15 +22,20 @@ final class ProgressWindowController {
         stack.spacing = 8
         stack.edgeInsets = NSEdgeInsets(top: 16, left: 20, bottom: 16, right: 20)
 
+        // Plain titled panel so the window follows the system appearance
+        // (`.hudWindow` forces a dark, monochrome look regardless of light /
+        // dark mode).
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 260, height: 52),
-            styleMask: [.titled, .hudWindow, .nonactivatingPanel],
+            styleMask: [.titled, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
         panel.contentView = stack
         panel.isFloatingPanel = true
+        panel.hidesOnDeactivate = false
         panel.title = "Finder Toolbox"
+        panel.appearance = nil  // inherit from system / app
         panel.center()
         panel.orderFront(nil)
         window = panel

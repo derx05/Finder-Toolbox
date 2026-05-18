@@ -27,10 +27,10 @@ final class AppController: ObservableObject {
     /// longer batches get a visible "Renaming…" indicator.
     private static let progressDelay: Duration = .seconds(2)
 
-    /// File count above which a recursive batch demands explicit confirmation.
-    /// Tunable from settings (`DefaultsKeys.recursiveWarnThreshold`); the
-    /// default of 50 catches "I picked the wrong folder" mistakes without
-    /// nagging on normal-sized batches.
+    /// Item count (files + folders) above which a recursive batch demands
+    /// explicit confirmation. Tunable from settings
+    /// (`DefaultsKeys.recursiveWarnThreshold`); the default of 50 catches
+    /// "I picked the wrong folder" mistakes without nagging on normal batches.
     static let defaultRecursiveWarnThreshold = 50
 
     private init() {
@@ -115,10 +115,13 @@ final class AppController: ObservableObject {
             plan = initialPlan
         }
 
-        // Threshold confirmation for recursive batches.
+        // Threshold confirmation for recursive batches. The threshold applies
+        // to the total item count — folders count too, since a folder rename
+        // is just as impactful as a file rename (and a tree of empty folders
+        // would otherwise sail past the check).
         if resolvedMode == .recursive {
-            let threshold = recursiveWarnThreshold
-            if plan.fileCount > threshold {
+            let totalItems = plan.fileCount + plan.folderCount
+            if totalItems > recursiveWarnThreshold {
                 guard FolderModeDialog.confirmLargeBatch(
                     fileCount: plan.fileCount,
                     folderCount: plan.folderCount

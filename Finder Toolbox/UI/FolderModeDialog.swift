@@ -40,16 +40,22 @@ enum FolderModeDialog {
     }
 
     /// Shown before a large recursive batch so the user doesn't accidentally
-    /// rename hundreds of files when they meant to rename only the selection.
+    /// rename hundreds of items when they meant to rename only the selection.
     static func confirmLargeBatch(fileCount: Int, folderCount: Int) -> Bool {
+        let total = fileCount + folderCount
         let alert = NSAlert()
-        alert.messageText = "Rename \(fileCount) files?"
-        var detail = "Recursive rename will affect \(fileCount) file\(fileCount == 1 ? "" : "s")"
-        if folderCount > 0 {
-            detail += " and \(folderCount) folder\(folderCount == 1 ? "" : "s")"
+        alert.messageText = "Rename \(total) item\(total == 1 ? "" : "s")?"
+
+        var parts: [String] = []
+        if fileCount > 0 {
+            parts.append("\(fileCount) file\(fileCount == 1 ? "" : "s")")
         }
-        detail += ". This action can be undone from the menu bar."
-        alert.informativeText = detail
+        if folderCount > 0 {
+            parts.append("\(folderCount) folder\(folderCount == 1 ? "" : "s")")
+        }
+        let breakdown = parts.joined(separator: " and ")
+        alert.informativeText = "Recursive rename will affect \(breakdown). This action can be undone from the menu bar."
+
         alert.alertStyle = .warning
         let proceed = alert.addButton(withTitle: "Rename")
         proceed.hasDestructiveAction = true
