@@ -27,29 +27,118 @@ final class AppController: ObservableObject {
     /// longer batches get a visible "Renaming…" indicator.
     private static let progressDelay: Duration = .seconds(2)
 
+    /// Item count (files + folders) above which a recursive batch demands
+    /// explicit confirmation. Tunable from settings
+    /// (`DefaultsKeys.recursiveWarnThreshold`); the default of 50 catches
+    /// "I picked the wrong folder" mistakes without nagging on normal batches.
+    static let defaultRecursiveWarnThreshold = 50
+
     private init() {
         HotkeyManager.shared.onFire = { [weak self] in
             Task { @MainActor in await self?.performRename() }
+        }
+        HotkeyManager.shared.onSecondaryFire = { [weak self] in
+            Task { @MainActor in await self?.performRename(forcedFolderMode: .recursive) }
         }
         HotkeyManager.shared.setup()
     }
 
     /// Run a rename batch against Finder's current selection.
-    func performRename() async {
+    ///
+    /// - Parameter forcedFolderMode: when non-nil, bypass the user's folder
+    ///   preference and the ask-prompt. Used by the secondary "always
+    ///   recursive" hotkey and could be wired from a menu item.
+    func performRename(forcedFolderMode: FolderMode? = nil) async {
         guard !isRenaming else { return }
         isRenaming = true
         defer { isRenaming = false }
 
-        // Show a progress panel only if the batch is still running after the
-        // delay. The task is cancelled below if the batch finishes faster.
+        // Plan first so we can prompt with accurate counts before touching anything.
+        let initialMode: FolderMode = forcedFolderMode ?? .flat
+        let initialPlan: RenameExecutor.Plan
+        do {
+            initialPlan = try await executor.plan(folderMode: initialMode)
+        } catch FinderBridgeError.noSelection {
+            return
+        } catch FinderBridgeError.automationDenied {
+            PermissionsManager.shared.markDenied()
+            SummaryDialog.showPermissionDenied()
+            return
+        } catch {
+            SummaryDialog.showIfNeeded(BatchSummary(outcomes: [
+                .failed(URL(fileURLWithPath: "/"), error: error.localizedDescription)
+            ]))
+            return
+        }
+
+        // Resolve folder mode for this batch.
+        let resolvedMode: FolderMode
+        if let forced = forcedFolderMode {
+            resolvedMode = forced
+        } else if HotkeyManager.shared.secondaryEnabled {
+            // Two-hotkey mode: primary is fixed to non-recursive; the user
+            // opted out of prompts by enabling the dedicated recursive hotkey.
+            resolvedMode = .flat
+        } else if initialPlan.folderCount == 0 {
+            resolvedMode = .flat  // No folders in selection → choice doesn't matter.
+        } else {
+            switch FolderModePreference.current() {
+            case .flat:
+                resolvedMode = .flat
+            case .recursive:
+                resolvedMode = .recursive
+            case .ask:
+                let otherCount = initialPlan.renames.count - initialPlan.folderCount
+                switch FolderModeDialog.askFolderMode(
+                    folderCount: initialPlan.folderCount,
+                    otherCount: otherCount
+                ) {
+                case .flat:      resolvedMode = .flat
+                case .recursive: resolvedMode = .recursive
+                case .cancel:    return
+                }
+            }
+        }
+
+        // Replan if recursion was chosen — the initial plan is flat-only.
+        let plan: RenameExecutor.Plan
+        if resolvedMode == .recursive && initialMode != .recursive {
+            do {
+                plan = try await executor.plan(folderMode: .recursive)
+            } catch {
+                SummaryDialog.showIfNeeded(BatchSummary(outcomes: [
+                    .failed(URL(fileURLWithPath: "/"), error: error.localizedDescription)
+                ]))
+                return
+            }
+        } else {
+            plan = initialPlan
+        }
+
+        // Threshold confirmation for recursive batches. The threshold applies
+        // to the total item count — folders count too, since a folder rename
+        // is just as impactful as a file rename (and a tree of empty folders
+        // would otherwise sail past the check).
+        if resolvedMode == .recursive {
+            let totalItems = plan.fileCount + plan.folderCount
+            if totalItems > recursiveWarnThreshold {
+                guard FolderModeDialog.confirmLargeBatch(
+                    fileCount: plan.fileCount,
+                    folderCount: plan.folderCount
+                ) else { return }
+            }
+        }
+
+        if plan.isEmpty { return }
+
         let progressTask = Task { @MainActor [weak self] in
             try await Task.sleep(for: Self.progressDelay)
             let controller = ProgressWindowController()
-            controller.show(fileCount: 0)
+            controller.show(fileCount: plan.renames.count)
             self?.progressController = controller
         }
 
-        let summary = await executor.run()
+        let summary = await executor.execute(plan: plan)
 
         progressTask.cancel()
         progressController?.hide()
@@ -82,5 +171,12 @@ final class AppController: ObservableObject {
         lastBatch = []
         let summary = await executor.reverseRename(records)
         SummaryDialog.showIfNeeded(summary)
+    }
+
+    // MARK: - Private
+
+    private var recursiveWarnThreshold: Int {
+        let stored = UserDefaults.standard.integer(forKey: DefaultsKeys.recursiveWarnThreshold)
+        return stored > 0 ? stored : Self.defaultRecursiveWarnThreshold
     }
 }

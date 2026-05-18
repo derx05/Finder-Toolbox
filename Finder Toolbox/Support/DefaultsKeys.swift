@@ -17,9 +17,19 @@ nonisolated enum DefaultsKeys {
     static let hotkeyKeyCode        = "hk.keyCode"
     static let hotkeyModifiers      = "hk.modifiers"
 
+    // Secondary hotkey (recursive rename) — see FolderMode.
+    static let secondaryHotkeyEnabled   = "hk.secondaryEnabled"
+    static let secondaryHotkeyKeyCode   = "hk.secondaryKeyCode"
+    static let secondaryHotkeyModifiers = "hk.secondaryModifiers"
+
     // Rename
     static let cleanupTrimStem      = "cleanup.trimStemWhitespace"
     static let emlUseDateHeader     = "eml.useDateHeader"
+
+    // Folders. `folderMode` raw values come from `FolderModePreference.rawValue`.
+    // `recursiveWarnThreshold` is the file count above which recursive batches require explicit confirmation.
+    static let folderMode               = "folders.mode"
+    static let recursiveWarnThreshold   = "folders.recursiveWarnThreshold"
 
     // Updates (placeholder — not wired up yet)
     static let updatesAutoCheck     = "updates.autoCheck"
