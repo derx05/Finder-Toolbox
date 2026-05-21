@@ -20,6 +20,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Force-instantiate so DockModeManager applies the persisted
         // activation policy (.regular vs .accessory) before any window appears.
         _ = DockModeManager.shared
+
+        // Start Sparkle. Deferred until didFinishLaunching so the persisted
+        // update channel + auto-check prefs are mirrored into the updater
+        // before its first scheduled check fires.
+        UpdateController.shared.start()
     }
 
     private func terminateOtherInstances() {

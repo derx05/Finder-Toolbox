@@ -1,0 +1,41 @@
+<?xml version="1.0" standalone="yes"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+    <channel>
+        <title>Finder Toolbox</title>
+        <link>https://raw.githubusercontent.com/derx05/Finder-Toolbox/main/appcast.xml</link>
+        <description>Finder Toolbox release feed.</description>
+        <language>en</language>
+
+        <!--
+            Channel convention (kept in sync with `UpdateChannel` in the app):
+
+              - Release builds          : no <sparkle:channel> element.
+              - Beta builds             : <sparkle:channel>beta</sparkle:channel>
+              - Development builds      : <sparkle:channel>development</sparkle:channel>
+
+            See docs/RELEASING.md for the full release procedure.
+        -->
+
+        <!-- Example item (delete this block once a real release is added):
+
+        <item>
+            <title>Finder Toolbox 1.0.0</title>
+            <sparkle:version>2026-05-18-02</sparkle:version>
+            <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <ul>
+                    <li>First public release.</li>
+                </ul>
+            ]]></description>
+            <pubDate>Mon, 18 May 2026 12:00:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/derx05/Finder-Toolbox/releases/download/v1.0.0/Finder.Toolbox.1.0.0.zip"
+                sparkle:edSignature="REPLACE_WITH_OUTPUT_OF_sign_update"
+                length="0"
+                type="application/octet-stream" />
+        </item>
+
+        -->
+    </channel>
+</rss>

@@ -4,5 +4,14 @@
 <dict>
 	<key>com.apple.security.automation.apple-events</key>
 	<true/>
+	<!--
+		Sparkle's Installer XPC is signed by the Sparkle Project, not by our
+		Team ID. With hardened runtime on (required for notarization), the
+		default library-validation policy refuses to load it. Relaxing it for
+		this binary is the documented Sparkle requirement — see
+		docs/RELEASING.md.
+	-->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
 </dict>
 </plist>

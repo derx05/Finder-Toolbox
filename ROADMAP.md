@@ -76,6 +76,9 @@ Versioned feature plan for Finder Toolbox. Items in v1 are committed; later vers
 - Recent history view in the menu bar dropdown — last N renames with one-click "Reveal in Finder".
 - Configurable end-of-batch summary verbosity (always / on issues only / never).
 
+### Distribution / updates
+- In-app auto-update via Sparkle, fed from a GitHub-hosted appcast. Three user-selectable channels (Release / Beta / Development) mapped to semver tag suffixes — see `docs/RELEASING.md`.
+
 ---
 
 ## v3 — Watchers and automation

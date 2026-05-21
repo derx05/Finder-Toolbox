@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		65B12D092FBE1EDC004D3B88 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 65B12D082FBE1EDC004D3B88 /* Sparkle */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		65634D162FAA163500F8ACE4 /* Finder Toolbox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Finder Toolbox.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +27,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				65B12D092FBE1EDC004D3B88 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +70,7 @@
 			);
 			name = "Finder Toolbox";
 			packageProductDependencies = (
+				65B12D082FBE1EDC004D3B88 /* Sparkle */,
 			);
 			productName = "Finder Toolbox";
 			productReference = 65634D162FAA163500F8ACE4 /* Finder Toolbox.app */;
@@ -94,6 +100,9 @@
 			);
 			mainGroup = 65634D0D2FAA163500F8ACE4;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				65B12D072FBE1EDC004D3B88 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 65634D172FAA163500F8ACE4 /* Products */;
 			projectDirPath = "";
@@ -258,7 +267,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Finder Toolbox/Finder Toolbox.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = "2026-05-18-02";
+				CURRENT_PROJECT_VERSION = "2026-05-20-01";
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = S5RTVC5QRF;
 				ENABLE_APP_SANDBOX = NO;
@@ -279,6 +288,8 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "danielammann.Finder-Toolbox";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/derx05/Finder-Toolbox/main/appcast.xml";
+				INFOPLIST_KEY_SUPublicEDKey = "7yvnTMsyQ9pbnuzT0fdLMUg4v8xiPWi3ocrtsWNKSVs=";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -296,7 +307,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Finder Toolbox/Finder Toolbox.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = "2026-05-18-02";
+				CURRENT_PROJECT_VERSION = "2026-05-20-01";
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = S5RTVC5QRF;
 				ENABLE_APP_SANDBOX = NO;
@@ -317,6 +328,8 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "danielammann.Finder-Toolbox";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/derx05/Finder-Toolbox/main/appcast.xml";
+				INFOPLIST_KEY_SUPublicEDKey = "7yvnTMsyQ9pbnuzT0fdLMUg4v8xiPWi3ocrtsWNKSVs=";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -347,6 +360,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		65B12D072FBE1EDC004D3B88 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.9.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		65B12D082FBE1EDC004D3B88 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 65B12D072FBE1EDC004D3B88 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 65634D0E2FAA163500F8ACE4 /* Project object */;
 }

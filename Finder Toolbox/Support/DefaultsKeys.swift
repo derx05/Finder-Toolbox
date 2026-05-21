@@ -31,7 +31,13 @@ nonisolated enum DefaultsKeys {
     static let folderMode               = "folders.mode"
     static let recursiveWarnThreshold   = "folders.recursiveWarnThreshold"
 
-    // Updates (placeholder — not wired up yet)
+    // Updates. `updatesChannel` raw values come from `UpdateChannel.rawValue`;
+    // `updatesAutoCheck` / `updatesAutoDownload` mirror Sparkle's
+    // `automaticallyChecksForUpdates` / `automaticallyDownloadsUpdates` so the
+    // About page can bind to them via `@AppStorage` without poking Sparkle.
+    // `updatesLastChecked` is informational only — `SPUUpdater.lastUpdateCheckDate`
+    // is the source of truth at runtime; we mirror it here for display.
+    static let updatesChannel       = "updates.channel"
     static let updatesAutoCheck     = "updates.autoCheck"
     static let updatesAutoDownload  = "updates.autoDownload"
     static let updatesLastChecked   = "updates.lastChecked"

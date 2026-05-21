@@ -1,20 +1,28 @@
 import SwiftUI
 import AppKit
 
-/// "About" panel: app identity, update toggles (placeholder), and quit/links row.
+/// "About" panel: app identity, update channel + toggles, and quit/links row.
 struct AboutPage: View {
     private let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
     private let build   = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
     private let year    = String(format: "%d", Calendar.current.component(.year, from: Date()))
 
-    @AppStorage(DefaultsKeys.updatesAutoCheck)    private var autoCheck: Bool    = false
-    @AppStorage(DefaultsKeys.updatesAutoDownload) private var autoDownload: Bool = false
-    @AppStorage(DefaultsKeys.updatesLastChecked)  private var lastCheckedRaw: Double = 0
+    @AppStorage(DefaultsKeys.updatesChannel)      private var channelRaw: String  = UpdateChannel.release.rawValue
+    @AppStorage(DefaultsKeys.updatesAutoCheck)    private var autoCheck: Bool     = true
+    @AppStorage(DefaultsKeys.updatesAutoDownload) private var autoDownload: Bool  = false
+
+    @ObservedObject private var updater = UpdateController.shared
 
     private var lastCheckedLabel: String {
-        guard lastCheckedRaw > 0 else { return "Never" }
-        return Date(timeIntervalSince1970: lastCheckedRaw)
-            .formatted(date: .abbreviated, time: .shortened)
+        guard let date = updater.lastUpdateCheckDate else { return "Never" }
+        return date.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private var channelBinding: Binding<UpdateChannel> {
+        Binding(
+            get: { UpdateChannel(rawValue: channelRaw) ?? .release },
+            set: { channelRaw = $0.rawValue }
+        )
     }
 
     var body: some View {
@@ -48,15 +56,25 @@ struct AboutPage: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 28)
 
+                Picker("Update channel", selection: channelBinding) {
+                    ForEach(UpdateChannel.allCases) { channel in
+                        Text(channel.displayName).tag(channel)
+                    }
+                }
+                .pickerStyle(.menu)
+
                 Toggle("Automatically check for updates", isOn: $autoCheck)
                     .toggleStyle(.switch)
 
                 Toggle("Automatically download updates", isOn: $autoDownload)
                     .toggleStyle(.switch)
+                    .disabled(!autoCheck)
 
                 HStack {
-                    Button("Check for Updates") {}
-                        .disabled(true)
+                    Button("Check for Updates") {
+                        UpdateController.shared.checkForUpdates()
+                    }
+                    .disabled(!updater.canCheckForUpdates)
                     Spacer()
                     Text("Last checked: \(lastCheckedLabel)")
                         .foregroundStyle(.secondary)
@@ -74,7 +92,7 @@ struct AboutPage: View {
                     Spacer()
 
                     Button {
-                        NSWorkspace.shared.open(URL(string: "https://github.com/danielammann/finder-toolbox")!)
+                        NSWorkspace.shared.open(URL(string: "https://github.com/derx05/Finder-Toolbox")!)
                     } label: {
                         HStack(spacing: 5) {
                             Image(systemName: "chevron.left.forwardslash.chevron.right")
