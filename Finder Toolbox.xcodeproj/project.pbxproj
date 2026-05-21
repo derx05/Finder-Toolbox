@@ -14,9 +14,22 @@
 		65634D162FAA163500F8ACE4 /* Finder Toolbox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Finder Toolbox.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		65B12DE22FBED869004D3B88 /* Exceptions for "Finder Toolbox" folder in "Finder Toolbox" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"Finder-Toolbox-Info.plist",
+			);
+			target = 65634D152FAA163500F8ACE4 /* Finder Toolbox */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		65634D182FAA163500F8ACE4 /* Finder Toolbox */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				65B12DE22FBED869004D3B88 /* Exceptions for "Finder Toolbox" folder in "Finder Toolbox" target */,
+			);
 			path = "Finder Toolbox";
 			sourceTree = "<group>";
 		};
@@ -274,11 +287,14 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Finder-Toolbox-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Finder Toolbox";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Finder Toolbox needs access to Finder to rename your selected files.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/derx05/Finder-Toolbox/main/appcast.xml";
+				INFOPLIST_KEY_SUPublicEDKey = "7yvnTMsyQ9pbnuzT0fdLMUg4v8xiPWi3ocrtsWNKSVs=";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -288,8 +304,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "danielammann.Finder-Toolbox";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/derx05/Finder-Toolbox/main/appcast.xml";
-				INFOPLIST_KEY_SUPublicEDKey = "7yvnTMsyQ9pbnuzT0fdLMUg4v8xiPWi3ocrtsWNKSVs=";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -314,11 +328,14 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Finder-Toolbox-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Finder Toolbox";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Finder Toolbox needs access to Finder to rename your selected files.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/derx05/Finder-Toolbox/main/appcast.xml";
+				INFOPLIST_KEY_SUPublicEDKey = "7yvnTMsyQ9pbnuzT0fdLMUg4v8xiPWi3ocrtsWNKSVs=";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -328,8 +345,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "danielammann.Finder-Toolbox";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/derx05/Finder-Toolbox/main/appcast.xml";
-				INFOPLIST_KEY_SUPublicEDKey = "7yvnTMsyQ9pbnuzT0fdLMUg4v8xiPWi3ocrtsWNKSVs=";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
