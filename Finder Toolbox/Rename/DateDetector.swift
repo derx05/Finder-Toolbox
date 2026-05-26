@@ -17,7 +17,16 @@ enum DateDetector {
         let nsStr = stem as NSString
         let fullRange = NSRange(location: 0, length: nsStr.length)
 
-        for entry in patterns {
+        // Style-specific entry first so the user's chosen output format
+        // round-trips cleanly. Disambiguates US (`MM-dd-yyyy`) vs DE
+        // (`dd-MM-yyyy`) and recognises formats absent from the generic list.
+        var allPatterns: [PatternEntry] = []
+        if let styleEntry = DateFormatStyle.current().makeDetectorEntry() {
+            allPatterns.append(PatternEntry(regex: styleEntry.regex, extract: styleEntry.extract))
+        }
+        allPatterns.append(contentsOf: patterns)
+
+        for entry in allPatterns {
             guard let match = entry.regex.firstMatch(in: stem, range: fullRange) else { continue }
 
             let groups = (1..<match.numberOfRanges).map { i -> String in

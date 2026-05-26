@@ -17,6 +17,9 @@ struct FileRenamingSettingsPage: View {
     @AppStorage(DefaultsKeys.folderMode) private var folderModeRaw = FolderModePreference.default.rawValue
     @AppStorage(DefaultsKeys.recursiveWarnThreshold) private var recursiveWarnThreshold = AppController.defaultRecursiveWarnThreshold
 
+    @AppStorage(DefaultsKeys.dateFormatStyle) private var dateFormatStyleRaw = DateFormatStyle.default.rawValue
+    @AppStorage(DefaultsKeys.datePriority) private var datePriorityRaw = DatePriority.default.rawValue
+
     @AppStorage(DefaultsKeys.pdfUseContentDate) private var pdfUseContentDate = true
     @AppStorage(DefaultsKeys.pdfConflictBehavior) private var pdfConflictBehaviorRaw = PdfConflictBehavior.default.rawValue
     @AppStorage(DefaultsKeys.pdfNoDateBehavior) private var pdfNoDateBehaviorRaw = PdfNoDateBehavior.default.rawValue
@@ -28,6 +31,27 @@ struct FileRenamingSettingsPage: View {
             get: { FolderModePreference(rawValue: folderModeRaw) ?? .default },
             set: { folderModeRaw = $0.rawValue }
         )
+    }
+
+    private var dateFormatStyle: Binding<DateFormatStyle> {
+        Binding(
+            get: { DateFormatStyle(rawValue: dateFormatStyleRaw) ?? .default },
+            set: { dateFormatStyleRaw = $0.rawValue }
+        )
+    }
+
+    private var datePriority: Binding<DatePriority> {
+        Binding(
+            get: { DatePriority(rawValue: datePriorityRaw) ?? .default },
+            set: { datePriorityRaw = $0.rawValue }
+        )
+    }
+
+    /// Today's date rendered in `style`, used to preview format choices live
+    /// in the picker. Recomputed per render so changing the locale at runtime
+    /// is reflected without restart.
+    private func previewSample(_ style: DateFormatStyle) -> String {
+        style.format(FilenameBuilder.todayComponents())
     }
 
     private var pdfConflictBehavior: Binding<PdfConflictBehavior> {
@@ -89,6 +113,50 @@ struct FileRenamingSettingsPage: View {
                             secondaryHotkeyLabel = HotkeyManager.shared.secondaryShortcutLabel
                         }
                     )
+                }
+            }
+
+            Section("Date format") {
+                LabeledContent {
+                    Picker("", selection: dateFormatStyle) {
+                        ForEach(DateFormatStyle.allCases, id: \.self) { style in
+                            Text("\(style.displayName) — \(previewSample(style))")
+                                .tag(style)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 320)
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("Output format")
+                        InfoPopover(
+                            title: "Date prefix format",
+                            detail: "Controls how the date prefix is written into new filenames. \"Follow system region\" mirrors the format set in System Settings → General → Language & Region, with the year forced to four digits. Slashes are replaced with dashes because \"/\" isn't allowed in macOS filenames. Existing date prefixes are re-formatted to this style on the next rename.",
+                            exampleBefore: "01.01.2024 Invoice.pdf",
+                            exampleAfter: "2024-01-01 Invoice.pdf"
+                        )
+                    }
+                }
+            }
+
+            Section("Date priority") {
+                LabeledContent {
+                    Picker("", selection: datePriority) {
+                        Text("Let content extraction override").tag(DatePriority.contentOverridesFilename)
+                        Text("Trust existing filename date").tag(DatePriority.filenameWins)
+                    }
+                    .labelsHidden()
+                    .frame(width: 280)
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("When filename and document disagree")
+                        InfoPopover(
+                            title: "Date priority",
+                            detail: "When the filename already starts with a recognizable date AND the email header or PDF contents yield a different one, this setting decides which wins. \"Content extraction\" is best when downloads or exports leave wrong filename dates. \"Filename date\" is best when you curate filenames manually and want the existing prefix preserved — the date is just re-formatted, and email/PDF date extraction is skipped.",
+                            exampleBefore: "2024-01-01 Invoice.pdf  (PDF body: 03.05.2024)",
+                            exampleAfter: "2024-05-03 Invoice.pdf  (content wins)"
+                        )
+                    }
                 }
             }
 

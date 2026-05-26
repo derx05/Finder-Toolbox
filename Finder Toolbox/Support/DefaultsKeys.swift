@@ -26,6 +26,13 @@ nonisolated enum DefaultsKeys {
     static let cleanupTrimStem      = "cleanup.trimStemWhitespace"
     static let emlUseDateHeader     = "eml.useDateHeader"
 
+    // Output date format. Raw values come from `DateFormatStyle.rawValue`;
+    // `.system` follows `Locale.current` with `/` sanitized to `-` for
+    // filename safety. `datePriority` decides whether a date already in
+    // the filename or one extracted from the document wins when both exist.
+    static let dateFormatStyle      = "rename.dateFormat"
+    static let datePriority         = "rename.datePriority"
+
     // PDF date extraction. `pdfUseContentDate` is the master toggle; the
     // *Behavior keys hold raw values of `PdfPromptBehavior` / `PdfNoDateBehavior`
     // so every dialog the feature can raise has a "don't ask" setting.
@@ -62,6 +69,8 @@ nonisolated enum DefaultsKeys {
     nonisolated static func registerInitialDefaults() {
         UserDefaults.standard.register(defaults: [
             emlUseDateHeader:           true,
+            dateFormatStyle:            "system", // DateFormatStyle.default
+            datePriority:               "content", // DatePriority.default
             pdfUseContentDate:          true,
             pdfConflictBehavior:        "ask",   // PdfConflictBehavior.default
             pdfNoDateBehavior:          "ask",   // PdfNoDateBehavior.default
