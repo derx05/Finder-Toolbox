@@ -2,10 +2,7 @@ import Foundation
 
 enum FilenameBuilder {
     nonisolated static func canonical(date: DateComponents, remainder: String, extension ext: String) -> String {
-        let y = date.year ?? 0
-        let m = date.month ?? 0
-        let d = date.day ?? 0
-        let datePart = String(format: "%04d-%02d-%02d", y, m, d)
+        let datePart = DateFormatStyle.current().format(date)
 
         let extTrimmed = ext.trimmingCharacters(in: .whitespaces)
 

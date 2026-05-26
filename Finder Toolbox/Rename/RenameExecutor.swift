@@ -282,6 +282,15 @@ actor RenameExecutor {
             stem = stem.trimmingCharacters(in: .whitespaces)
         }
 
+        // Priority: when the user trusts filenames, a recognisable date prefix
+        // wins and content extraction is skipped entirely. The detector still
+        // runs (we need the remainder either way), so the cost is one regex
+        // pass before the eml/pdf branches.
+        if DatePriority.current() == .filenameWins,
+           let detected = DateDetector.detect(in: stem) {
+            return FilenameBuilder.canonical(date: detected.date, remainder: detected.remainder, extension: ext)
+        }
+
         // .eml: use the date from the email headers rather than the filename or today.
         if ext.lowercased() == "eml",
            UserDefaults.standard.bool(forKey: DefaultsKeys.emlUseDateHeader),

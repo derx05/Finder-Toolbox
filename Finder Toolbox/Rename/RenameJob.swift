@@ -32,6 +32,28 @@ enum FolderModePreference: String, CaseIterable, Sendable {
     }
 }
 
+/// Whose date wins when the filename already starts with a recognisable
+/// date prefix AND content extraction (`.eml` Date header, PDF body) finds
+/// a different one.
+///
+/// `.contentOverridesFilename` is the original 1.0.0 behaviour and stays the
+/// default — invoice filenames are often stale (e.g. browser-set download
+/// timestamps) and the document body is more trustworthy. `.filenameWins`
+/// short-circuits content extraction entirely whenever the filename parses,
+/// which is the right call for users who curate filenames manually.
+enum DatePriority: String, CaseIterable, Sendable {
+    case contentOverridesFilename = "content"
+    case filenameWins             = "filename"
+
+    static let `default`: DatePriority = .contentOverridesFilename
+
+    static func current() -> DatePriority {
+        guard let raw = UserDefaults.standard.string(forKey: DefaultsKeys.datePriority),
+              let v = DatePriority(rawValue: raw) else { return .default }
+        return v
+    }
+}
+
 /// What to do when the PDF heuristic and the PDF metadata creation date
 /// disagree by more than `pdfConflictToleranceDays`. `ask` triggers the
 /// `PdfConflictDialog`; the other cases are silent and let batches run
