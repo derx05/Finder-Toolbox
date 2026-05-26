@@ -32,6 +32,64 @@ enum FolderModePreference: String, CaseIterable, Sendable {
     }
 }
 
+/// What to do when the PDF heuristic and the PDF metadata creation date
+/// disagree by more than `pdfConflictToleranceDays`. `ask` triggers the
+/// `PdfConflictDialog`; the other cases are silent and let batches run
+/// hands-off.
+enum PdfConflictBehavior: String, CaseIterable, Sendable {
+    case ask
+    case preferHeuristic = "heuristic"
+    case preferMetadata  = "metadata"
+
+    static let `default`: PdfConflictBehavior = .ask
+
+    static func current() -> PdfConflictBehavior {
+        guard let raw = UserDefaults.standard.string(forKey: DefaultsKeys.pdfConflictBehavior),
+              let v = PdfConflictBehavior(rawValue: raw) else { return .default }
+        return v
+    }
+}
+
+/// What to do when the PDF heuristic finds no date at all. Metadata is
+/// often still available (the PDF generator stamped it); `today` matches
+/// the existing `.eml` fallback behaviour for users who'd rather not
+/// trust metadata.
+enum PdfNoDateBehavior: String, CaseIterable, Sendable {
+    case ask
+    case metadata
+    case today
+
+    static let `default`: PdfNoDateBehavior = .ask
+
+    static func current() -> PdfNoDateBehavior {
+        guard let raw = UserDefaults.standard.string(forKey: DefaultsKeys.pdfNoDateBehavior),
+              let v = PdfNoDateBehavior(rawValue: raw) else { return .default }
+        return v
+    }
+}
+
+/// A PDF whose date couldn't be resolved silently and needs a user choice
+/// before the rename batch can run. Carries both candidate dates plus the
+/// pre-computed naming pieces so `applyPdfResolutions` can rebuild the
+/// final filename without re-reading the PDF.
+struct PdfPendingDecision: Sendable {
+    enum Kind: Sendable {
+        /// Heuristic and metadata both produced dates but they disagree.
+        case conflict
+        /// Heuristic found no date; metadata is the only candidate.
+        case noDate
+    }
+
+    let originalURL: URL
+    let kind: Kind
+    let heuristic: DateComponents?
+    let metadata: DateComponents?
+    /// Filename stem stripped of any existing leading date prefix.
+    let remainder: String
+    /// Extension without the dot.
+    let ext: String
+}
+
 struct RenameRecord: Sendable {
     let renamedURL: URL      // current path (post-rename)
     let originalName: String // filename to restore on undo

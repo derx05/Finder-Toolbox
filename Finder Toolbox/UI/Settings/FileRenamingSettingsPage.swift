@@ -17,10 +17,30 @@ struct FileRenamingSettingsPage: View {
     @AppStorage(DefaultsKeys.folderMode) private var folderModeRaw = FolderModePreference.default.rawValue
     @AppStorage(DefaultsKeys.recursiveWarnThreshold) private var recursiveWarnThreshold = AppController.defaultRecursiveWarnThreshold
 
+    @AppStorage(DefaultsKeys.pdfUseContentDate) private var pdfUseContentDate = true
+    @AppStorage(DefaultsKeys.pdfConflictBehavior) private var pdfConflictBehaviorRaw = PdfConflictBehavior.default.rawValue
+    @AppStorage(DefaultsKeys.pdfNoDateBehavior) private var pdfNoDateBehaviorRaw = PdfNoDateBehavior.default.rawValue
+    @AppStorage(DefaultsKeys.pdfConflictToleranceDays) private var pdfConflictToleranceDays = 7
+    @AppStorage(DefaultsKeys.pdfUseOcrFallback) private var pdfUseOcrFallback = true
+
     private var folderMode: Binding<FolderModePreference> {
         Binding(
             get: { FolderModePreference(rawValue: folderModeRaw) ?? .default },
             set: { folderModeRaw = $0.rawValue }
+        )
+    }
+
+    private var pdfConflictBehavior: Binding<PdfConflictBehavior> {
+        Binding(
+            get: { PdfConflictBehavior(rawValue: pdfConflictBehaviorRaw) ?? .default },
+            set: { pdfConflictBehaviorRaw = $0.rawValue }
+        )
+    }
+
+    private var pdfNoDateBehavior: Binding<PdfNoDateBehavior> {
+        Binding(
+            get: { PdfNoDateBehavior(rawValue: pdfNoDateBehaviorRaw) ?? .default },
+            set: { pdfNoDateBehaviorRaw = $0.rawValue }
         )
     }
 
@@ -150,6 +170,106 @@ struct FileRenamingSettingsPage: View {
                             detail: "Reads the Date: header from the .eml file and uses it as the file's date prefix instead of the filesystem modification date.",
                             exampleBefore: "\"Invoice.eml\"",
                             exampleAfter: "\"2024-03-15 Invoice.eml\""
+                        )
+                    }
+                }
+            }
+
+            Section("PDF") {
+                LabeledContent {
+                    Toggle("", isOn: $pdfUseContentDate)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("Extract date from PDF contents")
+                        InfoPopover(
+                            title: "PDF date extraction",
+                            detail: "Reads the document text (and PDF creation-date metadata) to detect invoice-style dates like \"Rechnungsdatum: 03.05.2024\" or \"Invoice Date: 2024-05-03\". When both sources agree, the rename runs silently. When they disagree, the behavior below decides what happens.",
+                            exampleBefore: "\"Invoice.pdf\"",
+                            exampleAfter: "\"2024-05-03 Invoice.pdf\""
+                        )
+                    }
+                }
+
+                LabeledContent {
+                    Picker("", selection: pdfConflictBehavior) {
+                        Text("Ask each time").tag(PdfConflictBehavior.ask)
+                        Text("Use document text").tag(PdfConflictBehavior.preferHeuristic)
+                        Text("Use file metadata").tag(PdfConflictBehavior.preferMetadata)
+                    }
+                    .labelsHidden()
+                    .frame(width: 200)
+                    .disabled(!pdfUseContentDate)
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("When sources disagree")
+                        InfoPopover(
+                            title: "Conflict behavior",
+                            detail: "What to do when the date found in the document text doesn't match the PDF's metadata creation date (outside the tolerance window below). \"Document text\" is usually the right answer for invoices — metadata reflects when the PDF was generated, which may be a reprint.",
+                            exampleBefore: nil,
+                            exampleAfter: nil
+                        )
+                    }
+                }
+
+                LabeledContent {
+                    Picker("", selection: pdfNoDateBehavior) {
+                        Text("Ask each time").tag(PdfNoDateBehavior.ask)
+                        Text("Use file metadata").tag(PdfNoDateBehavior.metadata)
+                        Text("Use today's date").tag(PdfNoDateBehavior.today)
+                    }
+                    .labelsHidden()
+                    .frame(width: 200)
+                    .disabled(!pdfUseContentDate)
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("When no date is found in text")
+                        InfoPopover(
+                            title: "No-date behavior",
+                            detail: "What to do when the heuristic finds nothing date-shaped in the document. Metadata is usually accurate for digitally-generated PDFs; choose \"today\" if you'd rather not trust metadata at all.",
+                            exampleBefore: nil,
+                            exampleAfter: nil
+                        )
+                    }
+                }
+
+                LabeledContent {
+                    Stepper(
+                        value: $pdfConflictToleranceDays,
+                        in: 0...365,
+                        step: 1
+                    ) {
+                        Text("\(pdfConflictToleranceDays) day\(pdfConflictToleranceDays == 1 ? "" : "s")")
+                            .monospacedDigit()
+                            .frame(minWidth: 80, alignment: .trailing)
+                    }
+                    .disabled(!pdfUseContentDate)
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("Treat sources as agreeing within")
+                        InfoPopover(
+                            title: "Conflict tolerance",
+                            detail: "Document and metadata dates within this many days of each other are treated as agreeing and no prompt is shown. Larger windows are more forgiving (fewer prompts), smaller windows are stricter.",
+                            exampleBefore: nil,
+                            exampleAfter: nil
+                        )
+                    }
+                }
+
+                LabeledContent {
+                    Toggle("", isOn: $pdfUseOcrFallback)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .disabled(!pdfUseContentDate)
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("OCR scanned PDFs")
+                        InfoPopover(
+                            title: "OCR fallback",
+                            detail: "When a PDF has no embedded text (typical of scanned invoices), run macOS's built-in text recognizer on the first page to look for a date. Adds about 200–500 ms per scanned PDF.",
+                            exampleBefore: nil,
+                            exampleAfter: nil
                         )
                     }
                 }

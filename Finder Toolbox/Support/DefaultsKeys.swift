@@ -26,6 +26,17 @@ nonisolated enum DefaultsKeys {
     static let cleanupTrimStem      = "cleanup.trimStemWhitespace"
     static let emlUseDateHeader     = "eml.useDateHeader"
 
+    // PDF date extraction. `pdfUseContentDate` is the master toggle; the
+    // *Behavior keys hold raw values of `PdfPromptBehavior` / `PdfNoDateBehavior`
+    // so every dialog the feature can raise has a "don't ask" setting.
+    // `pdfConflictToleranceDays` is the window inside which heuristic and
+    // metadata dates are treated as agreeing (no prompt).
+    static let pdfUseContentDate         = "pdf.useContentDate"
+    static let pdfConflictBehavior       = "pdf.conflictBehavior"
+    static let pdfNoDateBehavior         = "pdf.noDateBehavior"
+    static let pdfConflictToleranceDays  = "pdf.conflictToleranceDays"
+    static let pdfUseOcrFallback         = "pdf.useOcrFallback"
+
     // Folders. `folderMode` raw values come from `FolderModePreference.rawValue`.
     // `recursiveWarnThreshold` is the file count above which recursive batches require explicit confirmation.
     static let folderMode               = "folders.mode"
@@ -41,4 +52,21 @@ nonisolated enum DefaultsKeys {
     static let updatesAutoCheck     = "updates.autoCheck"
     static let updatesAutoDownload  = "updates.autoDownload"
     static let updatesLastChecked   = "updates.lastChecked"
+
+    /// Seeds `UserDefaults` with the values the rest of the app reads
+    /// directly off `UserDefaults.standard` (notably the rename actor,
+    /// which can't go through `@AppStorage`). `@AppStorage` only writes
+    /// when the user touches a control, so without this an actor-side
+    /// `bool(forKey:)` would return `false` on a fresh install regardless
+    /// of what the Settings UI displays as the default.
+    nonisolated static func registerInitialDefaults() {
+        UserDefaults.standard.register(defaults: [
+            emlUseDateHeader:           true,
+            pdfUseContentDate:          true,
+            pdfConflictBehavior:        "ask",   // PdfConflictBehavior.default
+            pdfNoDateBehavior:          "ask",   // PdfNoDateBehavior.default
+            pdfConflictToleranceDays:   7,
+            pdfUseOcrFallback:          true,
+        ])
+    }
 }

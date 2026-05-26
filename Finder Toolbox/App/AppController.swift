@@ -131,14 +131,26 @@ final class AppController: ObservableObject {
 
         if plan.isEmpty { return }
 
+        // Resolve any PDF date ambiguities the planner flagged. Cancel-batch
+        // from the dialog aborts the whole rename.
+        let finalPlan: RenameExecutor.Plan
+        if plan.pdfDecisions.isEmpty {
+            finalPlan = plan
+        } else {
+            guard let resolutions = resolvePdfDecisions(plan.pdfDecisions) else { return }
+            finalPlan = await executor.applyPdfResolutions(plan: plan, resolutions: resolutions)
+        }
+
+        if finalPlan.isEmpty { return }
+
         let progressTask = Task { @MainActor [weak self] in
             try await Task.sleep(for: Self.progressDelay)
             let controller = ProgressWindowController()
-            controller.show(fileCount: plan.renames.count)
+            controller.show(fileCount: finalPlan.renames.count)
             self?.progressController = controller
         }
 
-        let summary = await executor.execute(plan: plan)
+        let summary = await executor.execute(plan: finalPlan)
 
         progressTask.cancel()
         progressController?.hide()
@@ -178,5 +190,74 @@ final class AppController: ObservableObject {
     private var recursiveWarnThreshold: Int {
         let stored = UserDefaults.standard.integer(forKey: DefaultsKeys.recursiveWarnThreshold)
         return stored > 0 ? stored : Self.defaultRecursiveWarnThreshold
+    }
+
+    /// Walks the planner's pending PDF decisions and asks the user which
+    /// candidate to use, one alert per decision (with an "apply to remaining"
+    /// shortcut). Returns the map of overrides for `applyPdfResolutions`, or
+    /// `nil` if the user cancelled the batch.
+    ///
+    /// Decisions of kind `.conflict` and `.noDate` are presented separately
+    /// because the "apply to remaining" sticky-disposition only makes sense
+    /// within the same kind: choosing "use metadata" for a conflict shouldn't
+    /// auto-pick anything for a different no-date prompt.
+    private func resolvePdfDecisions(_ decisions: [PdfPendingDecision]) -> [URL: DateComponents]? {
+        var resolutions: [URL: DateComponents] = [:]
+
+        let conflicts = decisions.filter { $0.kind == .conflict }
+        let noDates   = decisions.filter { $0.kind == .noDate }
+
+        var stickyConflict: PdfConflictDialog.Disposition?
+        for (i, decision) in conflicts.enumerated() {
+            let disposition: PdfConflictDialog.Disposition
+            if let sticky = stickyConflict {
+                disposition = sticky
+            } else {
+                let response = PdfConflictDialog.askConflict(
+                    decision: decision,
+                    index: i + 1,
+                    total: conflicts.count
+                )
+                guard let chosen = response.disposition else { return nil }
+                disposition = chosen
+                if response.applyToRemaining { stickyConflict = chosen }
+            }
+            if let date = pickDate(for: disposition, from: decision) {
+                resolutions[decision.originalURL] = date
+            }
+        }
+
+        var stickyNoDate: PdfConflictDialog.Disposition?
+        for (i, decision) in noDates.enumerated() {
+            let disposition: PdfConflictDialog.Disposition
+            if let sticky = stickyNoDate {
+                disposition = sticky
+            } else {
+                let response = PdfConflictDialog.askNoDate(
+                    decision: decision,
+                    index: i + 1,
+                    total: noDates.count
+                )
+                guard let chosen = response.disposition else { return nil }
+                disposition = chosen
+                if response.applyToRemaining { stickyNoDate = chosen }
+            }
+            if let date = pickDate(for: disposition, from: decision) {
+                resolutions[decision.originalURL] = date
+            }
+        }
+
+        return resolutions
+    }
+
+    private func pickDate(
+        for disposition: PdfConflictDialog.Disposition,
+        from decision: PdfPendingDecision
+    ) -> DateComponents? {
+        switch disposition {
+        case .heuristic: return decision.heuristic
+        case .metadata:  return decision.metadata
+        case .today:     return FilenameBuilder.todayComponents()
+        }
     }
 }

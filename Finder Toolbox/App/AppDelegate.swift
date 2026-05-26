@@ -10,6 +10,11 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Seed UserDefaults before any actor-side code reads it. @AppStorage
+        // only persists on user interaction, so without this the rename
+        // actor would see `false` for keys whose Settings UI default is true.
+        DefaultsKeys.registerInitialDefaults()
+
         // Debug builds launched from Xcode while a release copy is already
         // running would otherwise compete for the global hotkey. Terminate
         // any sibling instances first.
