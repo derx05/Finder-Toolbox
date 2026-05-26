@@ -10,6 +10,16 @@
 		65B12D092FBE1EDC004D3B88 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 65B12D082FBE1EDC004D3B88 /* Sparkle */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		7711AA00000000000000A00A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 65634D0E2FAA163500F8ACE4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 65634D152FAA163500F8ACE4;
+			remoteInfo = "Finder Toolbox";
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		65634D162FAA163500F8ACE4 /* Finder Toolbox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Finder Toolbox.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		7711AA00000000000000A004 /* Finder ToolboxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Finder ToolboxTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -203,16 +213,6 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
-/* Begin PBXContainerItemProxy section */
-		7711AA00000000000000A00A /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 65634D0E2FAA163500F8ACE4 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 65634D152FAA163500F8ACE4;
-			remoteInfo = "Finder Toolbox";
-		};
-/* End PBXContainerItemProxy section */
-
 /* Begin PBXTargetDependency section */
 		7711AA00000000000000A009 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -355,7 +355,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Finder Toolbox/Finder Toolbox.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = "2026-05-20-01";
+				CURRENT_PROJECT_VERSION = "2026-05-26-01";
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = S5RTVC5QRF;
 				ENABLE_APP_SANDBOX = NO;
@@ -396,7 +396,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Finder Toolbox/Finder Toolbox.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = "2026-05-20-01";
+				CURRENT_PROJECT_VERSION = "2026-05-26-01";
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = S5RTVC5QRF;
 				ENABLE_APP_SANDBOX = NO;
