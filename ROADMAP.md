@@ -12,7 +12,7 @@ Versioned feature plan for Finder Toolbox. Items in v1 are committed; later vers
 - [x] Disable `ENABLE_APP_SANDBOX` (incompatible with global hotkey + Apple Events to Finder for arbitrary user files).
 - [x] Keep `ENABLE_HARDENED_RUNTIME = YES`. Add `Finder Toolbox.entitlements` with `com.apple.security.automation.apple-events = YES` and an `NSAppleEventsUsageDescription` Info.plist key (via `INFOPLIST_KEY_NSAppleEventsUsageDescription`).
 - [x] `INFOPLIST_KEY_LSUIElement = YES` — no Dock icon, menu bar only.
-- [ ] Add a unit test target for the date-detection logic. *(Only v1 item still open. Targets: `DateDetector`, `EmlDateExtractor`.)*
+- [x] Add a unit test target for the date-detection logic. *(`Finder ToolboxTests` target, covers `DateDetector`, `EmlDateExtractor`, `PdfDateExtractor`. Closed alongside #17.)*
 
 ### Menu bar shell
 - [x] Replace `WindowGroup` with `MenuBarExtra` (template icon).
@@ -22,7 +22,7 @@ Versioned feature plan for Finder Toolbox. Items in v1 are committed; later vers
 ### Rename pipeline
 - [x] Apple Events bridge: query Finder for current selection (returns file URLs).
 - [x] Date detector: pure function, parses leading date in supported formats:
-  - `YYYY-MM-DD`, `YYYYMMDD`, `YY-MM-DD`, `YYMMDD`, `DD.MM.YYYY`, `DDMMYY`
+  - `YYYY-MM-DD`, `YYYYMMDD`, `YY-MM-DD`, `YYMMDD`, `DD.MM.YYYY`, `DD.MM.YY`
   - Tolerant of `_`, `-`, ` ` separator after the date.
   - **Only** matches at start of name; mid-filename dates are ignored.
 - [x] Rename builder: produces canonical `YYYY-MM-DD Name.ext` (literal space, fixed in v1).
@@ -60,7 +60,7 @@ Versioned feature plan for Finder Toolbox. Items in v1 are committed; later vers
 
 ### Smart per-type date extraction
 - ~~`.eml` / `.mbox`: parse `Date:` header from RFC 5322 source.~~ **Shipped in v1.0** — see `EmlDateExtractor.swift`. Falls back to today's date if header missing/malformed.
-- PDF: read document creation date from PDF metadata via `PDFKit`.
+- ~~PDF: read document creation date from PDF metadata via `PDFKit`.~~ **Shipped via #17** — `PdfDateExtractor.swift` does PDFKit text extraction + label-aware regex (DE+EN) + metadata creation date + Vision OCR fallback for scanned PDFs. Settings expose ask-vs-silent behavior per conflict and per missing-date case so the feature can run hands-off or interactive. Apple Intelligence (Foundation Models) fallback for the residue — gated by `#available(macOS 26.0, *)` — deferred to its own follow-up issue.
 - Images: `DateTimeOriginal` from EXIF via `ImageIO` / `CGImageSource`.
 - Extraction is opt-in per file type in settings.
 - Never use file-system creation/modification date as a fallback for these — explicitly disallowed by user preference (an `.eml` exported days later would get a meaningless date).
