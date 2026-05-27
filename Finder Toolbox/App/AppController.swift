@@ -119,7 +119,7 @@ final class AppController: ObservableObject {
         // to the total item count — folders count too, since a folder rename
         // is just as impactful as a file rename (and a tree of empty folders
         // would otherwise sail past the check).
-        if resolvedMode == .recursive {
+        if resolvedMode == .recursive, recursiveWarnEnabled {
             let totalItems = plan.fileCount + plan.folderCount
             if totalItems > recursiveWarnThreshold {
                 guard FolderModeDialog.confirmLargeBatch(
@@ -190,6 +190,12 @@ final class AppController: ObservableObject {
     private var recursiveWarnThreshold: Int {
         let stored = UserDefaults.standard.integer(forKey: DefaultsKeys.recursiveWarnThreshold)
         return stored > 0 ? stored : Self.defaultRecursiveWarnThreshold
+    }
+
+    private var recursiveWarnEnabled: Bool {
+        // Defaults register() seeds `true`; reading directly so the rename
+        // controller doesn't need a settings round-trip.
+        UserDefaults.standard.bool(forKey: DefaultsKeys.recursiveWarnEnabled)
     }
 
     /// Walks the planner's pending PDF decisions and asks the user which

@@ -32,6 +32,10 @@ nonisolated enum DefaultsKeys {
     // the filename or one extracted from the document wins when both exist.
     static let dateFormatStyle      = "rename.dateFormat"
     static let datePriority         = "rename.datePriority"
+    // Disambiguates numeric dates whose field order can't be inferred from the
+    // string itself (e.g. "12-05-2012"). Raw values come from
+    // `DateAmbiguityOrder.rawValue`. Defaults to day-first.
+    static let dateAmbiguityOrder   = "rename.dateAmbiguityOrder"
 
     // PDF date extraction. `pdfUseContentDate` is the master toggle; the
     // *Behavior keys hold raw values of `PdfPromptBehavior` / `PdfNoDateBehavior`
@@ -47,6 +51,10 @@ nonisolated enum DefaultsKeys {
     // Folders. `folderMode` raw values come from `FolderModePreference.rawValue`.
     // `recursiveWarnThreshold` is the file count above which recursive batches require explicit confirmation.
     static let folderMode               = "folders.mode"
+    // When false, recursive batches skip the size-threshold confirmation
+    // dialog entirely. Risky — exists so power users who know what they're
+    // doing can avoid the prompt without setting an absurdly high threshold.
+    static let recursiveWarnEnabled     = "folders.recursiveWarnEnabled"
     static let recursiveWarnThreshold   = "folders.recursiveWarnThreshold"
 
     // Updates. `updatesChannel` raw values come from `UpdateChannel.rawValue`;
@@ -71,6 +79,8 @@ nonisolated enum DefaultsKeys {
             emlUseDateHeader:           true,
             dateFormatStyle:            "system", // DateFormatStyle.default
             datePriority:               "content", // DatePriority.default
+            dateAmbiguityOrder:         "dayFirst", // DateAmbiguityOrder.default
+            recursiveWarnEnabled:       true,
             pdfUseContentDate:          true,
             pdfConflictBehavior:        "ask",   // PdfConflictBehavior.default
             pdfNoDateBehavior:          "ask",   // PdfNoDateBehavior.default

@@ -15,10 +15,12 @@ struct FileRenamingSettingsPage: View {
     @AppStorage(DefaultsKeys.cleanupTrimStem) private var trimStemWhitespace = false
     @AppStorage(DefaultsKeys.emlUseDateHeader) private var emlUseDateHeader = true
     @AppStorage(DefaultsKeys.folderMode) private var folderModeRaw = FolderModePreference.default.rawValue
+    @AppStorage(DefaultsKeys.recursiveWarnEnabled) private var recursiveWarnEnabled = true
     @AppStorage(DefaultsKeys.recursiveWarnThreshold) private var recursiveWarnThreshold = AppController.defaultRecursiveWarnThreshold
 
     @AppStorage(DefaultsKeys.dateFormatStyle) private var dateFormatStyleRaw = DateFormatStyle.default.rawValue
     @AppStorage(DefaultsKeys.datePriority) private var datePriorityRaw = DatePriority.default.rawValue
+    @AppStorage(DefaultsKeys.dateAmbiguityOrder) private var dateAmbiguityOrderRaw = DateAmbiguityOrder.default.rawValue
 
     @AppStorage(DefaultsKeys.pdfUseContentDate) private var pdfUseContentDate = true
     @AppStorage(DefaultsKeys.pdfConflictBehavior) private var pdfConflictBehaviorRaw = PdfConflictBehavior.default.rawValue
@@ -44,6 +46,13 @@ struct FileRenamingSettingsPage: View {
         Binding(
             get: { DatePriority(rawValue: datePriorityRaw) ?? .default },
             set: { datePriorityRaw = $0.rawValue }
+        )
+    }
+
+    private var dateAmbiguityOrder: Binding<DateAmbiguityOrder> {
+        Binding(
+            get: { DateAmbiguityOrder(rawValue: dateAmbiguityOrderRaw) ?? .default },
+            set: { dateAmbiguityOrderRaw = $0.rawValue }
         )
     }
 
@@ -125,7 +134,6 @@ struct FileRenamingSettingsPage: View {
                         }
                     }
                     .labelsHidden()
-                    .frame(width: 320)
                 } label: {
                     HStack(spacing: 6) {
                         Text("Output format")
@@ -134,6 +142,25 @@ struct FileRenamingSettingsPage: View {
                             detail: "Controls how the date prefix is written into new filenames. \"Follow system region\" mirrors the format set in System Settings → General → Language & Region, with the year forced to four digits. Slashes are replaced with dashes because \"/\" isn't allowed in macOS filenames. Existing date prefixes are re-formatted to this style on the next rename.",
                             exampleBefore: "01.01.2024 Invoice.pdf",
                             exampleAfter: "2024-01-01 Invoice.pdf"
+                        )
+                    }
+                }
+
+                LabeledContent {
+                    Picker("", selection: dateAmbiguityOrder) {
+                        ForEach(DateAmbiguityOrder.allCases, id: \.self) { order in
+                            Text(order.displayName).tag(order)
+                        }
+                    }
+                    .labelsHidden()
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("Interpret ambiguous dates as")
+                        InfoPopover(
+                            title: "Ambiguous date order",
+                            detail: "When a filename starts with a purely numeric date whose order isn't obvious (e.g. \"12-05-2012\"), this setting decides whether the first field is the day or the month. Unambiguous shapes like \"2012-05-12\" or \"2012_05_12\" are recognized regardless.",
+                            exampleBefore: "12-05-2012 Screenshot.png",
+                            exampleAfter: "2012-05-12 Screenshot.png"
                         )
                     }
                 }
@@ -146,7 +173,6 @@ struct FileRenamingSettingsPage: View {
                         Text("Trust existing filename date").tag(DatePriority.filenameWins)
                     }
                     .labelsHidden()
-                    .frame(width: 280)
                 } label: {
                     HStack(spacing: 6) {
                         Text("When filename and document disagree")
@@ -168,7 +194,6 @@ struct FileRenamingSettingsPage: View {
                         Text("Rename recursively").tag(FolderModePreference.recursive)
                     }
                     .labelsHidden()
-                    .frame(width: 200)
                     .disabled(secondaryEnabled)
                 } label: {
                     HStack(spacing: 6) {
@@ -185,24 +210,42 @@ struct FileRenamingSettingsPage: View {
                 }
 
                 LabeledContent {
-                    Stepper(
-                        value: $recursiveWarnThreshold,
-                        in: 1...10_000,
-                        step: 10
-                    ) {
-                        Text("\(recursiveWarnThreshold) items")
-                            .monospacedDigit()
-                            .frame(minWidth: 80, alignment: .trailing)
-                    }
+                    Toggle("", isOn: $recursiveWarnEnabled)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
                 } label: {
                     HStack(spacing: 6) {
-                        Text("Confirm recursive rename above")
+                        Text("Confirm large recursive batches")
                         InfoPopover(
                             title: "Recursive batch confirmation",
-                            detail: "Recursive batches larger than this item count (files + folders combined) require an extra confirmation dialog. Set higher if you regularly rename large folders and find the prompt annoying.",
+                            detail: "Recursive batches larger than the threshold below require an extra confirmation dialog before they run. Turn off to skip the prompt entirely — only do this if you're confident you won't trigger a recursive rename on the wrong folder; there's no per-file undo for a batch that runs unattended.",
                             exampleBefore: nil,
                             exampleAfter: nil
                         )
+                    }
+                }
+
+                if recursiveWarnEnabled {
+                    LabeledContent {
+                        Stepper(
+                            value: $recursiveWarnThreshold,
+                            in: 1...10_000,
+                            step: 10
+                        ) {
+                            Text("\(recursiveWarnThreshold) items")
+                                .monospacedDigit()
+                                .frame(minWidth: 80, alignment: .trailing)
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text("Confirm above")
+                            InfoPopover(
+                                title: "Confirmation threshold",
+                                detail: "Recursive batches at or below this item count (files + folders combined) run without an extra prompt. Set higher if you regularly rename large folders and find the prompt annoying.",
+                                exampleBefore: nil,
+                                exampleAfter: nil
+                            )
+                        }
                     }
                 }
             }
@@ -267,7 +310,6 @@ struct FileRenamingSettingsPage: View {
                         Text("Use file metadata").tag(PdfConflictBehavior.preferMetadata)
                     }
                     .labelsHidden()
-                    .frame(width: 200)
                     .disabled(!pdfUseContentDate)
                 } label: {
                     HStack(spacing: 6) {
@@ -288,7 +330,6 @@ struct FileRenamingSettingsPage: View {
                         Text("Use today's date").tag(PdfNoDateBehavior.today)
                     }
                     .labelsHidden()
-                    .frame(width: 200)
                     .disabled(!pdfUseContentDate)
                 } label: {
                     HStack(spacing: 6) {
