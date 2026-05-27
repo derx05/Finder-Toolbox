@@ -22,3 +22,6 @@ Package.resolved.bak
 
 # Claude Code / local tooling
 .claude/
+
+# Local builds and archives
+builds/

@@ -13,7 +13,7 @@ For the full product context, read in this order:
 2. **`ROADMAP.md`** — versioned feature plan (v1 prototype → v4+ toolbox expansion).
 3. **`docs/architecture-notes.md`** — load-bearing technical decisions and their rationale (App Store rejection, Apple Events vs `NSFileManager`, hotkey library, FSEvents, etc.). Read this before touching the rename pipeline.
 
-v1 is shipped (1.0.0 Beta). Source lives under `Finder Toolbox/` in feature-named folders (`App/`, `Rename/`, `FinderBridge/`, `Hotkey/`, `UI/`, `UI/Settings/`, `Permissions/`, `Support/`). The renamer is end-to-end functional, including `.eml` `Date:` header extraction (originally a v2 item) and a folder-rename mode dialog (recursive / ask / two-hotkey). Pre-built betas are checked into `releases/`.
+v1 is shipped (1.0.0 Beta). Source lives under `Finder Toolbox/` in feature-named folders (`App/`, `Rename/`, `FinderBridge/`, `Hotkey/`, `UI/`, `UI/Settings/`, `Permissions/`, `Support/`). The renamer is end-to-end functional, including `.eml` `Date:` header extraction (originally a v2 item) and a folder-rename mode dialog (recursive / ask / two-hotkey). Local builds and archives live in `builds/` (gitignored).
 
 ## Build / Run
 
