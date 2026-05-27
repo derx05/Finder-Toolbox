@@ -4,12 +4,25 @@ import AppKit
 /// Settings row that presents the current global shortcut and offers a
 /// "click to record" affordance.
 struct HotkeyRow: View {
+    let title: String
     let label: String
     @Binding var isRecording: Bool
     let onNewShortcut: (UInt16, NSEvent.ModifierFlags) -> Void
 
+    init(
+        title: String = "Global Shortcut",
+        label: String,
+        isRecording: Binding<Bool>,
+        onNewShortcut: @escaping (UInt16, NSEvent.ModifierFlags) -> Void
+    ) {
+        self.title = title
+        self.label = label
+        self._isRecording = isRecording
+        self.onNewShortcut = onNewShortcut
+    }
+
     var body: some View {
-        LabeledContent("Global Shortcut") {
+        LabeledContent(title) {
             HotkeyRecorderView(
                 displayLabel: isRecording ? "Press keys…" : label,
                 isRecording: isRecording,

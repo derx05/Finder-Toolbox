@@ -58,11 +58,26 @@ actor FinderBridge {
             return outcomes
         }
 
-        // Fall back to individual scripts so we get per-file error info.
+        // The batch halted partway through. AppleScript's default error
+        // behavior is to abort the whole `tell` block on the first failure,
+        // so a chunk of earlier commands may already have succeeded in
+        // Finder. Probe the filesystem before retrying any item — otherwise
+        // we'd re-issue successful renames and Finder would respond with
+        // "Can't set item X" because X no longer exists under its old name.
         return renames.map { rename in
+            let toURL = rename.from.deletingLastPathComponent().appendingPathComponent(rename.to)
+            let fm = FileManager.default
+            let originalExists = fm.fileExists(atPath: rename.from.path)
+            let targetExists = fm.fileExists(atPath: toURL.path)
+
+            if !originalExists && targetExists {
+                // The batch already renamed this one; report it as renamed
+                // rather than retrying.
+                return .renamed(from: rename.from, to: toURL)
+            }
+
             do {
                 try renameSingle(from: rename.from, to: rename.to)
-                let toURL = rename.from.deletingLastPathComponent().appendingPathComponent(rename.to)
                 return .renamed(from: rename.from, to: toURL)
             } catch {
                 return .failed(rename.from, error: error.localizedDescription)
@@ -75,8 +90,14 @@ actor FinderBridge {
     private func tryBatchScript(_ renames: [(from: URL, to: String)]) -> [RenameOutcome]? {
         var lines = ["tell application \"Finder\""]
         for r in renames {
-            // "as alias" coerces the file reference to an alias that Finder's rename command accepts.
-            lines.append("  set name of (POSIX file \(asString(r.from.path)) as alias) to \(asString(r.to))")
+            // Reference the item via its parent folder + filename rather than coercing the
+            // POSIX path to an alias. Network volumes (NAS) can produce alias values that
+            // Finder refuses to rename ("Can't set alias … to …"); going through the
+            // parent folder avoids alias resolution entirely. See issue #8.
+            let parent = r.from.deletingLastPathComponent().path
+            let name = finderName(from: r.from.lastPathComponent)
+            let newName = finderName(from: r.to)
+            lines.append("  set name of (item \(asString(name)) of folder (POSIX file \(asString(parent)))) to \(asString(newName))")
         }
         lines.append("end tell")
 
@@ -92,12 +113,25 @@ actor FinderBridge {
     }
 
     private func renameSingle(from url: URL, to newName: String) throws {
+        let parent = url.deletingLastPathComponent().path
+        let name = finderName(from: url.lastPathComponent)
+        let target = finderName(from: newName)
         let source = """
             tell application "Finder"
-                set name of (POSIX file \(asString(url.path)) as alias) to \(asString(newName))
+                set name of (item \(asString(name)) of folder (POSIX file \(asString(parent)))) to \(asString(target))
             end tell
         """
         try runScript(source)
+    }
+
+    /// Translates a POSIX filename into the form Finder uses for its `name`
+    /// property. macOS stores `/` in user-visible names as `:` at the POSIX
+    /// layer, so a file the user sees as "Foo / Bar" has a POSIX name of
+    /// "Foo : Bar". Finder's AppleScript model uses the user-visible form;
+    /// without this swap, files containing `/` in their Finder name can't
+    /// be located by `item "…"`.
+    private func finderName(from posixName: String) -> String {
+        posixName.replacingOccurrences(of: ":", with: "/")
     }
 
     @discardableResult

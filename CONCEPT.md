@@ -7,7 +7,7 @@
 | Field | Details |
 |---|---|
 | **Type** | Native macOS app (SwiftUI), menu bar utility |
-| **Stage** | Early — Xcode scaffold exists, no feature code yet |
+| **Stage** | v1 shipped (1.0.0 Beta, 2026-05-18). In daily self-dogfooding; iterating toward a public-ready v1.x |
 | **Team** | Solo (Daniel) |
 | **Timeline** | No deadline. Iterative — ship a working v1 prototype quickly, then grow |
 | **Distribution** | Direct distribution, Developer ID signed + notarized (App Store ruled out — see below) |
@@ -55,7 +55,8 @@ Menu bar icon, no Dock icon. Click reveals: Settings…, Quit, and (later) recen
 
 ### Out of scope (for v1)
 
-- `.eml` `Date:` header extraction (planned for v2 — it's the next obvious smart-extractor)
+> Note: `.eml` `Date:` header extraction and the folder-rename mode dialog were originally listed as out-of-scope / v2 items but ended up shipping in 1.0.0 Beta. Remaining out-of-scope items below.
+
 - PDF metadata, image EXIF extraction
 - Folder watcher / drop folder auto-rename
 - Filename cleanup (trailing spaces, ` (1)`, `copy`, weird unicode)
@@ -123,13 +124,20 @@ A successful v1 is judged purely by *Daniel's own daily use*. Public release is 
 - **Performance vs. undo trade-off (v3+)**
   Apple Events to Finder is slower per file than `NSFileManager.moveItem`. For human-scale batches it's fine; for thousand-file batches it may not be. Roadmap item: a settings toggle "Prefer undo / Prefer speed / Auto" that switches rename API based on batch size.
 
-### Next steps
+### What shipped in v1 (1.0.0 Beta)
 
-1. **Reconfigure the project for direct distribution.** Turn off `ENABLE_APP_SANDBOX`, keep `ENABLE_HARDENED_RUNTIME = YES`. Add an entitlements file. Update `CLAUDE.md` accordingly. *(See `ROADMAP.md` v1 task list.)*
-2. **Convert from windowed app to menu bar app.** Drop `WindowGroup`, use `MenuBarExtra`, set `LSUIElement` (via `INFOPLIST_KEY_LSUIElement = YES`).
-3. **Prototype the rename pipeline end-to-end with one file.** Global hotkey → query Finder selection via Apple Events → rename via Apple Events → verify it lands in Finder's undo stack. Don't build settings UI yet.
-4. **Add the date detection/reformatting logic** as a pure, well-tested function (a place where unit tests would actually pay off — consider adding a test target now).
-5. **Scale to batches** and verify undo grouping behavior. Decide on the mitigation path based on what Finder actually does.
-6. **Settings window** with hotkey rebinding. Then ship v1 to yourself and use it for two weeks before adding more.
+- Direct-distribution project config (sandbox off, hardened runtime on, entitlements + Automation usage description wired).
+- Menu bar app via `MenuBarExtra`, `LSUIElement = YES`, no Dock icon. Settings window with hotkey rebinding, file-renaming options, and About page.
+- Apple Events bridge to query Finder selection and perform renames (so renames land in Finder's undo stack). NAS-volume fallback path.
+- Date detector for all listed leading-date formats; canonical `YYYY-MM-DD Name.ext` output; Finder-style ` 2`, ` 3` conflict suffixes.
+- Global hotkey (default `⌃⌥⌘R`), rebindable in Settings.
+- Adaptive progress window; end-of-batch summary dialog only on issues.
+- Automation-permission denial path with a System Settings deep link.
+- **Past the original v1 scope:** `.eml` `Date:` header extraction, a folder-rename mode dialog (recursive / ask / two-hotkey), Start at Login, and a quit-existing-release-on-debug-launch developer affordance.
 
-See `ROADMAP.md` for the full versioned feature plan, and `docs/architecture-notes.md` for the load-bearing technical decisions.
+### Outstanding before "v1 complete"
+
+1. **Unit test target** for `DateDetector` and `EmlDateExtractor` — the one v1 checklist item still open.
+2. **Two weeks of self-dogfooding** (release was 2026-05-18; today is 2026-05-20). Decide what's wrong in actual daily use before greenlighting v2.
+
+See `ROADMAP.md` for the versioned plan past v1, and `docs/architecture-notes.md` for the load-bearing technical decisions.
