@@ -25,3 +25,4 @@ Package.resolved.bak
 
 # Local builds and archives
 builds/
+builds_signed/
