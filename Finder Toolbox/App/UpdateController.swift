@@ -2,6 +2,9 @@ import Foundation
 import AppKit
 import Combine
 import Sparkle
+import UserNotifications
+
+private let updateNotificationIdentifier = "danielammann.Finder-Toolbox.update-available"
 
 /// User-selectable release channel.
 ///
@@ -84,8 +87,12 @@ final class UpdateController: NSObject, ObservableObject {
         self.controller = SPUStandardUpdaterController(
             startingUpdater: false,
             updaterDelegate: self,
-            userDriverDelegate: nil
+            userDriverDelegate: self
         )
+
+        // Route notification taps back to Sparkle so the user lands on the
+        // standard update prompt instead of just bringing the app forward.
+        UNUserNotificationCenter.current().delegate = self
 
         // KVO on `canCheckForUpdates`. Sparkle flips this false while a check
         // is in flight; the About page uses it to disable the button.
@@ -167,5 +174,79 @@ extension UpdateController: SPUUpdaterDelegate {
         // Sparkle calls this on its own thread. `UpdateChannel.current` only
         // reads `UserDefaults`, which is thread-safe.
         UpdateChannel.current.allowedChannelTags
+    }
+}
+
+// MARK: - Gentle reminders
+//
+// `LSUIElement = YES` means Sparkle's standard scheduled-update prompt can
+// appear on top of whatever the user is doing without any dock/menu surface
+// to draw their attention back later. Sparkle's "gentle reminders" hook lets
+// us post a user notification instead so the prompt isn't missed.
+extension UpdateController: SPUStandardUserDriverDelegate {
+    nonisolated var supportsGentleScheduledUpdateReminders: Bool { true }
+
+    nonisolated func standardUserDriverWillHandleShowingUpdate(
+        _ handleShowingUpdate: Bool,
+        forUpdate update: SUAppcastItem,
+        state: SPUUserUpdateState
+    ) {
+        guard !state.userInitiated else { return }
+        let version = update.displayVersionString
+        Task { @MainActor in
+            let center = UNUserNotificationCenter.current()
+            center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+
+            let content = UNMutableNotificationContent()
+            content.title = String(localized: "A new version of Finder Toolbox is available")
+            content.body = String(localized: "Version \(version) is now available — click to update.")
+            let request = UNNotificationRequest(
+                identifier: updateNotificationIdentifier,
+                content: content,
+                trigger: nil
+            )
+            center.add(request)
+        }
+    }
+
+    nonisolated func standardUserDriverDidReceiveUserAttention(forUpdate update: SUAppcastItem) {
+        Task { @MainActor in
+            UNUserNotificationCenter.current()
+                .removeDeliveredNotifications(withIdentifiers: [updateNotificationIdentifier])
+        }
+    }
+
+    nonisolated func standardUserDriverWillFinishUpdateSession() {
+        Task { @MainActor in
+            UNUserNotificationCenter.current()
+                .removeDeliveredNotifications(withIdentifiers: [updateNotificationIdentifier])
+        }
+    }
+}
+
+extension UpdateController: UNUserNotificationCenterDelegate {
+    // Show the banner even if we're the frontmost app — the user has Settings
+    // open often enough that suppressing it would defeat the purpose.
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping @Sendable (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping @Sendable () -> Void
+    ) {
+        if response.notification.request.identifier == updateNotificationIdentifier,
+           response.actionIdentifier == UNNotificationDefaultActionIdentifier {
+            Task { @MainActor in
+                NSApp.activate(ignoringOtherApps: true)
+                self.controller.checkForUpdates(nil)
+            }
+        }
+        completionHandler()
     }
 }
