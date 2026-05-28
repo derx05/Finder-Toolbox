@@ -16,11 +16,27 @@ struct FinderToolboxApp: App {
 
     /// Template-rendered menu bar icon. Built once; size + template flag are
     /// required for correct dark-mode and tinting behaviour.
+    /// Debug builds use a red-tinted non-template variant so a Xcode session is
+    /// visually distinct from a running release copy.
     private static let menuBarIcon: NSImage = {
+        #if DEBUG
+        let source = NSImage(named: "menubar_icon") ?? NSImage()
+        let size = NSSize(width: 18, height: 18)
+        source.size = size
+        return NSImage(size: size, flipped: false) { rect in
+            guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
+            source.draw(in: rect)
+            ctx.setBlendMode(.sourceAtop)
+            NSColor.systemRed.setFill()
+            ctx.fill(rect)
+            return true
+        }
+        #else
         let image = NSImage(named: "menubar_icon") ?? NSImage()
         image.size = NSSize(width: 18, height: 18)
         image.isTemplate = true
         return image
+        #endif
     }()
 
     var body: some Scene {
