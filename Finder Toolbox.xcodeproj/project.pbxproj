@@ -355,7 +355,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Finder Toolbox/Finder Toolbox.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = "2026.05.27.02";
+				CURRENT_PROJECT_VERSION = "2026.05.28.01";
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = S5RTVC5QRF;
 				ENABLE_APP_SANDBOX = NO;
@@ -375,7 +375,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = "1.0.0 Beta";
+				MARKETING_VERSION = "0.1.0-beta.1";
 				PRODUCT_BUNDLE_IDENTIFIER = "danielammann.Finder-Toolbox";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -396,7 +396,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Finder Toolbox/Finder Toolbox.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = "2026.05.27.02";
+				CURRENT_PROJECT_VERSION = "2026.05.28.01";
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = S5RTVC5QRF;
 				ENABLE_APP_SANDBOX = NO;
@@ -416,7 +416,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = "1.0.0 Beta";
+				MARKETING_VERSION = "0.1.0-beta.1";
 				PRODUCT_BUNDLE_IDENTIFIER = "danielammann.Finder-Toolbox";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
