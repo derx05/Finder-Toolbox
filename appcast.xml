@@ -29,5 +29,24 @@
             See docs/RELEASING.md for the full release procedure.
         -->
 
+        <item>
+            <title>Finder Toolbox 0.1.0-beta.1</title>
+            <sparkle:version>2026.05.28.01</sparkle:version>
+            <sparkle:shortVersionString>0.1.0-beta.1</sparkle:shortVersionString>
+            <sparkle:channel>beta</sparkle:channel>
+            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <ul>
+                    <li>First public beta.</li>
+                </ul>
+            ]]></description>
+            <pubDate>Wed, 28 May 2026 00:00:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/derx05/Finder-Toolbox/releases/download/v0.1.0-beta.1/FinderToolbox-0.1.0-beta.1-2026.05.28.01.zip"
+                sparkle:edSignature="voJXatMRs2IAf4T88HG4lPdLYifbiS6hcCDMsIYq6rAV49RG1d1uRNv6kHKoEds0y8OTXSlfJluMObfO1axrBg=="
+                length="3363480"
+                type="application/octet-stream" />
+        </item>
+
     </channel>
 </rss>
