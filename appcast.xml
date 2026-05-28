@@ -18,7 +18,7 @@
 
         <item>
             <title>Finder Toolbox 1.0.0 Beta</title>
-            <sparkle:version>2026-05-27-02</sparkle:version>
+            <sparkle:version>2026.05.27.02</sparkle:version>
             <sparkle:shortVersionString>1.0.0 Beta</sparkle:shortVersionString>
             <sparkle:channel>beta</sparkle:channel>
             <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
@@ -37,7 +37,7 @@
 
         <item>
             <title>Finder Toolbox 1.0.0 Beta</title>
-            <sparkle:version>2026-05-27-01</sparkle:version>
+            <sparkle:version>2026.05.27.01</sparkle:version>
             <sparkle:shortVersionString>1.0.0 Beta</sparkle:shortVersionString>
             <sparkle:channel>beta</sparkle:channel>
             <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
