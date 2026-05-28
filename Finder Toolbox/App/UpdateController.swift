@@ -175,6 +175,14 @@ extension UpdateController: SPUUpdaterDelegate {
         // reads `UserDefaults`, which is thread-safe.
         UpdateChannel.current.allowedChannelTags
     }
+
+    nonisolated func updaterWillRelaunchApplication(_ updater: SPUUpdater) {
+        // applicationShouldTerminate returns .terminateCancel in accessory mode
+        // unless isExplicitQuit is set. Flag it so Sparkle's terminate() goes through.
+        Task { @MainActor in
+            DockModeManager.shared.prepareForSparkleRelaunch()
+        }
+    }
 }
 
 // MARK: - Gentle reminders

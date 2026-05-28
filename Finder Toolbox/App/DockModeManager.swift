@@ -92,4 +92,9 @@ final class DockModeManager: ObservableObject {
         isExplicitQuit = true
         NSApplication.shared.terminate(nil)
     }
+
+    // Called by Sparkle before it relaunches the app after an update.
+    func prepareForSparkleRelaunch() {
+        isExplicitQuit = true
+    }
 }
