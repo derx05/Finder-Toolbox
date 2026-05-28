@@ -82,6 +82,26 @@ struct AboutPage: View {
                 }
             }
 
+            Section("Open-source components") {
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Sparkle")
+                            .font(.body)
+                        Text("Copyright © 2006–2013 Andy Matuschak, 2009–2013 Sparkle contributors · MIT License")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button {
+                        NSWorkspace.shared.open(URL(string: "https://sparkle-project.org")!)
+                    } label: {
+                        Image(systemName: "arrow.up.right.square")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                }
+            }
+
             Section {
                 HStack {
                     Button("Quit Finder Toolbox", role: .destructive) {
