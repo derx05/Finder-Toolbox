@@ -63,6 +63,14 @@ Current settings (as shipped in 1.0.0 Beta):
 
 **Direct distribution only.** Developer ID signed + notarized DMG. App Store ruled out — see `docs/architecture-notes.md` for the rationale (don't relitigate this without reading it first).
 
+**GitHub release descriptions must end with a "Full changelog" link** comparing this release to the previous release on the **same channel**:
+
+- dev → previous dev tag (e.g. `v0.2.0-dev.2...v0.2.0-dev.3`)
+- beta → previous beta tag (e.g. `v0.1.0-beta.2...v0.1.0-beta.3`)
+- release → previous stable release tag (skip dev/beta tags entirely)
+
+Format: `**Full changelog**: https://github.com/derx05/Finder-Toolbox/compare/<prev-tag>...<this-tag>`. The release-naming and tagging conventions in `docs/RELEASING.md` are already correct — only the description body needs this addition.
+
 ## Deployment targets
 
 - App target: macOS **15.6** (`MACOSX_DEPLOYMENT_TARGET = 15.6` at the target level).
