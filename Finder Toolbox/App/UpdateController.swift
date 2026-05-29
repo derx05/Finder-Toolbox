@@ -76,6 +76,8 @@ final class UpdateController: NSObject, ObservableObject {
 
     private var controller: SPUStandardUpdaterController!
     private var canCheckObservation: NSKeyValueObservation?
+    private var autoCheckObservation: NSKeyValueObservation?
+    private var autoDownloadObservation: NSKeyValueObservation?
     private var cancellables: Set<AnyCancellable> = []
 
     var updater: SPUUpdater { controller.updater }
@@ -141,6 +143,29 @@ final class UpdateController: NSObject, ObservableObject {
             defaults.bool(forKey: DefaultsKeys.updatesAutoCheck)
         controller.updater.automaticallyDownloadsUpdates =
             defaults.bool(forKey: DefaultsKeys.updatesAutoDownload)
+
+        // Bidirectional sync between our mirror keys and Sparkle's own
+        // properties. The "Automatically download and install updates"
+        // checkbox in Sparkle's scheduled-update prompt writes to Sparkle's
+        // SU* keys, not our mirror — without KVO writing back, the user's
+        // pick in the prompt is invisible to the About page and gets reverted
+        // on the next defaults-changed tick.
+        // Written synchronously (no Task hop): the mirror must be up-to-date
+        // before the didChangeNotification handler below runs, otherwise it
+        // sees a stale mirror and reverts Sparkle's change. UserDefaults.set
+        // is thread-safe.
+        autoCheckObservation = controller.updater.observe(\.automaticallyChecksForUpdates, options: [.new]) { updater, _ in
+            let value = updater.automaticallyChecksForUpdates
+            if UserDefaults.standard.bool(forKey: DefaultsKeys.updatesAutoCheck) != value {
+                UserDefaults.standard.set(value, forKey: DefaultsKeys.updatesAutoCheck)
+            }
+        }
+        autoDownloadObservation = controller.updater.observe(\.automaticallyDownloadsUpdates, options: [.new]) { updater, _ in
+            let value = updater.automaticallyDownloadsUpdates
+            if UserDefaults.standard.bool(forKey: DefaultsKeys.updatesAutoDownload) != value {
+                UserDefaults.standard.set(value, forKey: DefaultsKeys.updatesAutoDownload)
+            }
+        }
 
         // Keep Sparkle in sync if the user toggles the About page switches.
         NotificationCenter.default
