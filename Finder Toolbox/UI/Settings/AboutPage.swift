@@ -66,7 +66,7 @@ struct AboutPage: View {
                 Toggle("Automatically check for updates", isOn: $autoCheck)
                     .toggleStyle(.switch)
 
-                Toggle("Automatically download updates", isOn: $autoDownload)
+                Toggle("Automatically download and install updates", isOn: $autoDownload)
                     .toggleStyle(.switch)
                     .disabled(!autoCheck)
 

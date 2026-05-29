@@ -15,12 +15,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // actor would see `false` for keys whose Settings UI default is true.
         DefaultsKeys.registerInitialDefaults()
 
-        // Debug builds launched from Xcode while a release copy is already
-        // running would otherwise compete for the global hotkey. Terminate
-        // any sibling instances first.
-        if BuildConfiguration.isDebug {
-            terminateOtherInstances()
-        }
+        // (Termination of other instances for debug builds happens earlier,
+        // in AppController.init, because hotkey registration runs before any
+        // delegate method fires.)
 
         // Force-instantiate so DockModeManager applies the persisted
         // activation policy (.regular vs .accessory) before any window appears.
