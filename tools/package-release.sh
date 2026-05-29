@@ -87,17 +87,16 @@ cp "$BUILDS_ZIP" "$SIGNED_ZIP"
 
 SIG_LINE=$("$SIGN_UPDATE" "$SIGNED_ZIP")
 printf '%s\n' "$SIG_LINE" > "$SIG_FILE"
-LENGTH=$(stat -f%z "$SIGNED_ZIP")
 
 echo "  wrote:  $SIGNED_ZIP"
 echo "  wrote:  $SIG_FILE"
 echo
 echo "appcast enclosure:"
+# sign_update prints both sparkle:edSignature="…" and length="…" on one line.
 cat <<EOF
     <enclosure
         url="https://github.com/derx05/Finder-Toolbox/releases/download/v${slug_version}/${ZIP_NAME}"
         ${SIG_LINE}
-        length="${LENGTH}"
         type="application/octet-stream" />
 EOF
 
