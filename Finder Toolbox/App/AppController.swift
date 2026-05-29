@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import SwiftUI
 import Combine
 
@@ -34,6 +35,15 @@ final class AppController: ObservableObject {
     static let defaultRecursiveWarnThreshold = 50
 
     private init() {
+        // Must run before HotkeyManager.setup(): the released copy's global
+        // hotkey registration conflicts with the debug build's, which wedges
+        // the released app's main thread. AppDelegate.applicationDidFinishLaunching
+        // is too late — this init fires during App-struct StateObject creation,
+        // before any delegate method.
+        #if DEBUG
+        Self.terminateOtherInstances()
+        #endif
+
         HotkeyManager.shared.onFire = { [weak self] in
             Task { @MainActor in await self?.performRename() }
         }
@@ -42,6 +52,29 @@ final class AppController: ObservableObject {
         }
         HotkeyManager.shared.setup()
     }
+
+    #if DEBUG
+    /// Kill any already-running copy of Finder Toolbox so the debug build
+    /// doesn't fight it for the global hotkey. Uses `forceTerminate()` rather
+    /// than `terminate()` because the released copy may already be wedged by
+    /// the hotkey-registration conflict and would no longer respond to the
+    /// polite quit AppleEvent.
+    private static func terminateOtherInstances() {
+        guard let bundleID = Bundle.main.bundleIdentifier else { return }
+        let me = ProcessInfo.processInfo.processIdentifier
+        let others = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+            .filter { $0.processIdentifier != me }
+        for app in others {
+            app.forceTerminate()
+        }
+        // Give the OS a moment to reclaim the hotkey registration before
+        // HotkeyManager.setup() tries to claim it.
+        let deadline = Date().addingTimeInterval(2)
+        while others.contains(where: { !$0.isTerminated }) && Date() < deadline {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+        }
+    }
+    #endif
 
     /// Run a rename batch against Finder's current selection.
     ///
