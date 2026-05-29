@@ -30,6 +30,25 @@
         -->
 
         <item>
+            <title>Finder Toolbox 0.1.0-beta.2</title>
+            <sparkle:version>2026.05.29.01</sparkle:version>
+            <sparkle:shortVersionString>0.1.0-beta.2</sparkle:shortVersionString>
+            <sparkle:channel>beta</sparkle:channel>
+            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <ul>
+                    <li>Updater test — no functional changes from beta.1; published to verify the Sparkle update flow end-to-end.</li>
+                </ul>
+            ]]></description>
+            <pubDate>Fri, 29 May 2026 00:00:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/derx05/Finder-Toolbox/releases/download/v0.1.0-beta.2/FinderToolbox-0.1.0-beta.2-2026.05.29.01.zip"
+                sparkle:edSignature="3pmKDxJ9WJV9fVbGZClicbLx8PLopZ7ixHmn6EFawIv9nn5I/x212rmQTi2m+yaiN9i6C1F7ZHgN02Vf6186Dg=="
+                length="3365981"
+                type="application/octet-stream" />
+        </item>
+
+        <item>
             <title>Finder Toolbox 0.1.0-beta.1</title>
             <sparkle:version>2026.05.28.01</sparkle:version>
             <sparkle:shortVersionString>0.1.0-beta.1</sparkle:shortVersionString>
