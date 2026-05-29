@@ -56,25 +56,34 @@ These steps happen once per machine that signs releases:
    in the target's build settings. `CURRENT_PROJECT_VERSION` is what Sparkle
    compares — it must monotonically increase per channel.
 2. Archive in Xcode (Product → Archive), export a Developer ID signed +
-   notarized build, then zip it:
+   notarized build. **Leave the bundle named `Finder Toolbox.app`** — do
+   not stamp the version into the bundle filename. Users who manually
+   download a zip and drag the app into `/Applications` need a stable
+   name; a version-stamped bundle produces a second app alongside any
+   existing install instead of replacing it. Version information lives in
+   `Info.plist`, the zip filename, and the GitHub release tag — nowhere
+   else.
+3. Drop the exported `Finder Toolbox.app` into `builds_new/` at the repo
+   root (gitignored), then run:
    ```sh
-   ditto -c -k --sequesterRsrc --keepParent "Finder Toolbox.app" "Finder Toolbox 1.1.0-beta.1.zip"
+   ./tools/package-release.sh
    ```
-3. Sign the zip:
-   ```sh
-   sign_update "Finder Toolbox 1.1.0-beta.1.zip"
-   # → prints: sparkle:edSignature="…" length="…"
-   ```
+   The script reads version + build from the bundle's `Info.plist`, zips
+   to `builds/FinderToolbox-{version}-{build}.zip` (inner bundle stays
+   `Finder Toolbox.app`), runs Sparkle's `sign_update`, copies the same
+   bytes to `builds_signed/`, records the signature to a `.sig` sidecar,
+   and prints the `<enclosure>` block ready to paste into `appcast.xml`.
 4. Tag the commit and push:
    ```sh
    git tag v1.1.0-beta.1
    git push origin v1.1.0-beta.1
    ```
-5. Create a GitHub Release for the tag and upload the `.zip` as a release
-   asset. Mark "This is a pre-release" for Beta and Development tags.
-6. Add an `<item>` to `appcast.xml`, copy the values from step 3 into the
-   `<enclosure>` element, set `<sparkle:channel>` per the table above (omit
-   for Release), and commit + push.
+5. Create a GitHub Release for the tag and upload
+   `builds_signed/FinderToolbox-…zip` as the release asset. Mark "This is
+   a pre-release" for Beta and Development tags.
+6. Add an `<item>` to `appcast.xml`, paste the `<enclosure>` block from
+   step 3, set `<sparkle:channel>` per the table above (omit for
+   Release), and commit + push.
 7. Verify: existing installs should pick up the new build within Sparkle's
    default check interval, or immediately via **Check for Updates**.
 
