@@ -210,6 +210,32 @@ final class AppController: ObservableObject {
         SummaryDialog.showIfNeeded(summary)
     }
 
+    /// Drop-target entry point. Routes drag-and-drop drops onto a Finder-window
+    /// overlay through the same naming + Finder Apple Events plumbing the
+    /// hotkey path uses, just with an explicit destination folder instead
+    /// of an in-place rename.
+    func performDrop(urls: [URL], into targetFolder: URL) async {
+        guard !urls.isEmpty, !isRenaming else { return }
+        isRenaming = true
+        defer { isRenaming = false }
+
+        let summary = await executor.executeDrop(urls: urls, into: targetFolder)
+
+        if PermissionsManager.shared.finderAutomationStatus == .denied {
+            SummaryDialog.showPermissionDenied()
+            return
+        }
+
+        lastBatch = summary.outcomes.compactMap { outcome in
+            if case .renamed(let from, let to) = outcome {
+                return RenameRecord(renamedURL: to, originalName: from.lastPathComponent)
+            }
+            return nil
+        }
+
+        SummaryDialog.showIfNeeded(summary)
+    }
+
     /// Reverse the most recent batch by asking Finder to rename each file back
     /// to its original name. Apple Events keep the operation in Finder's own
     /// undo stack, so a manual Cmd-Z in Finder also works.

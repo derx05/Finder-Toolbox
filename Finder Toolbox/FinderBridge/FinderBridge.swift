@@ -85,6 +85,38 @@ actor FinderBridge {
         }
     }
 
+    /// Moves each item into its target folder and renames it in a single
+    /// Finder transaction, so the whole batch is one entry in Finder's
+    /// native undo stack. Source and target may be on different volumes —
+    /// Finder handles cross-volume moves as a copy + delete.
+    ///
+    /// Caller is responsible for ensuring `newName` is already unique in
+    /// `targetFolder` (do conflict resolution upstream). `move … to …`
+    /// without `with replacing` will fail if a same-named file exists.
+    func moveAndRename(_ items: [(source: URL, targetFolder: URL, newName: String)]) -> [RenameOutcome] {
+        guard !items.isEmpty else { return [] }
+
+        if let outcomes = tryBatchMoveAndRename(items) {
+            return outcomes
+        }
+
+        // Single-block batch failed — retry per item, checking for already-
+        // completed work the same way batchRename does.
+        return items.map { item in
+            let toURL = item.targetFolder.appendingPathComponent(item.newName)
+            let fm = FileManager.default
+            if !fm.fileExists(atPath: item.source.path) && fm.fileExists(atPath: toURL.path) {
+                return .renamed(from: item.source, to: toURL)
+            }
+            do {
+                try moveAndRenameSingle(source: item.source, targetFolder: item.targetFolder, newName: item.newName)
+                return .renamed(from: item.source, to: toURL)
+            } catch {
+                return .failed(item.source, error: error.localizedDescription)
+            }
+        }
+    }
+
     // MARK: - Private
 
     private func tryBatchScript(_ renames: [(from: URL, to: String)]) -> [RenameOutcome]? {
@@ -110,6 +142,41 @@ actor FinderBridge {
         } catch {
             return nil
         }
+    }
+
+    private func tryBatchMoveAndRename(_ items: [(source: URL, targetFolder: URL, newName: String)]) -> [RenameOutcome]? {
+        var lines = ["tell application \"Finder\""]
+        for (i, item) in items.enumerated() {
+            let varName = "movedItem_\(i)"
+            let sourcePath = item.source.path
+            let folderPath = item.targetFolder.path
+            let newName = finderName(from: item.newName)
+            lines.append("  set \(varName) to move (POSIX file \(asString(sourcePath))) to folder (POSIX file \(asString(folderPath)))")
+            lines.append("  set name of \(varName) to \(asString(newName))")
+        }
+        lines.append("end tell")
+
+        do {
+            try runScript(lines.joined(separator: "\n"))
+            return items.map { item in
+                let toURL = item.targetFolder.appendingPathComponent(item.newName)
+                return .renamed(from: item.source, to: toURL)
+            }
+        } catch {
+            return nil
+        }
+    }
+
+    private func moveAndRenameSingle(source: URL, targetFolder: URL, newName: String) throws {
+        let folderPath = targetFolder.path
+        let name = finderName(from: newName)
+        let script = """
+            tell application "Finder"
+                set movedItem to move (POSIX file \(asString(source.path))) to folder (POSIX file \(asString(folderPath)))
+                set name of movedItem to \(asString(name))
+            end tell
+        """
+        try runScript(script)
     }
 
     private func renameSingle(from url: URL, to newName: String) throws {

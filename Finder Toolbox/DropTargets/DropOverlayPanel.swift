@@ -27,7 +27,11 @@ final class DropOverlayPanel: NSPanel {
         isFloatingPanel = true
         becomesKeyOnlyIfNeeded = true
         hidesOnDeactivate = false
-        collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle]
+        // .transient would dismiss the panel as soon as the source app
+        // (Finder, Mail, etc.) regains key during a drop — empirically that
+        // tears the panel down before prepareForDragOperation fires, and
+        // the drop animates back to source. Use .stationary instead.
+        collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
         isOpaque = false
         backgroundColor = .clear
         hasShadow = true
@@ -58,8 +62,11 @@ final class DropOverlayPanel: NSPanel {
         return NSRect(x: x, y: y, width: size.width, height: size.height)
     }
 
-    // Required overrides for borderless windows that need to accept
-    // drags without becoming key.
-    override var canBecomeKey: Bool { false }
+    // Borderless panels default to canBecomeKey=false, which blocks the
+    // drag-and-drop chain entirely (the panel never receives drag
+    // events). Allow key, but combined with `becomesKeyOnlyIfNeeded`
+    // and `nonactivatingPanel` the panel stays out of the way of the
+    // drag source's focus.
+    override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 }

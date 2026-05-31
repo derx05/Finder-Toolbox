@@ -71,7 +71,12 @@ final class DropTargetsCoordinator {
         for window in windows {
             let panel = DropOverlayPanel(target: window)
             (panel.contentView as? DropOverlayView)?.onDrop = { [weak self] urls in
-                self?.log.info("TODO step 4: rename + move \(urls.count, privacy: .public) file(s) into \(window.targetFolder.path, privacy: .public)")
+                guard let self else { return }
+                self.log.info("drop accepted: \(urls.count, privacy: .public) file(s) → \(window.targetFolder.path, privacy: .public)")
+                let targetFolder = window.targetFolder
+                Task { @MainActor in
+                    await AppController.shared.performDrop(urls: urls, into: targetFolder)
+                }
             }
             panel.orderFrontRegardless()
             panels.append(panel)

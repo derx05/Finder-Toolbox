@@ -57,12 +57,36 @@ final class DropOverlayView: NSView {
     // MARK: - NSDraggingDestination
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        let types = sender.draggingPasteboard.types ?? []
+        let sourceMask = sender.draggingSourceOperationMask
+        log.info("draggingEntered[\(self.folderName, privacy: .public)] sourceMask=\(sourceMask.rawValue, privacy: .public) types=\(types.map(\.rawValue).joined(separator: ","), privacy: .public)")
         layer?.backgroundColor = NSColor.systemGreen.withAlphaComponent(0.95).cgColor
-        return .copy
+        // Prefer copy; fall back to whatever the source allows so the drop
+        // isn't rejected if the source only offers .move or .generic.
+        if sourceMask.contains(.copy) { return .copy }
+        if sourceMask.contains(.generic) { return .generic }
+        if sourceMask.contains(.move) { return .move }
+        if sourceMask.contains(.link) { return .link }
+        return []
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        let sourceMask = sender.draggingSourceOperationMask
+        if sourceMask.contains(.copy) { return .copy }
+        if sourceMask.contains(.generic) { return .generic }
+        if sourceMask.contains(.move) { return .move }
+        if sourceMask.contains(.link) { return .link }
+        return []
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
+        log.debug("draggingExited[\(self.folderName, privacy: .public)]")
         layer?.backgroundColor = NSColor.systemBlue.withAlphaComponent(0.85).cgColor
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        log.debug("prepareForDragOperation[\(self.folderName, privacy: .public)]")
+        return true
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
