@@ -30,6 +30,19 @@ final class DragSessionSpike {
     private var armedChangeCount: Int = 0
     private var monitor: Any?
 
+    /// File-typed pasteboard markers. `.fileURL` covers Finder drags; the
+    /// promised-file types cover Mail.app, Safari, and anything using
+    /// `NSFilePromiseProvider` — required for the marquee "drag an email
+    /// out of Mail onto a Finder window overlay" use case (see spike
+    /// findings in issue #29).
+    private static let fileTypes: Set<NSPasteboard.PasteboardType> = [
+        .fileURL,
+        NSPasteboard.PasteboardType("com.apple.pasteboard.promised-file-url"),
+        NSPasteboard.PasteboardType("com.apple.pasteboard.promised-file-content-type"),
+    ]
+
+    private let snapshot = FinderWindowSnapshot()
+
     private init() {}
 
     func start() {
@@ -58,14 +71,22 @@ final class DragSessionSpike {
             guard cc > armedChangeCount else { return }
             // changeCount advanced since mouseDown → a drag session started.
             let types = pasteboard.types ?? []
-            let isFile = types.contains(.fileURL)
+            let isFile = !Self.fileTypes.isDisjoint(with: Set(types))
             log.info("""
                 drag detected — changeCount \(self.armedChangeCount, privacy: .public)→\(cc, privacy: .public), \
-                types=\(types.map(\.rawValue).joined(separator: ","), privacy: .public), \
                 isFile=\(isFile, privacy: .public), \
                 frontmost=\(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?", privacy: .public)
                 """)
             state = .active
+            if isFile {
+                Task.detached(priority: .userInitiated) { [snapshot, log] in
+                    let windows = await snapshot.capture()
+                    log.info("snapshot: \(windows.count, privacy: .public) Finder window(s)")
+                    for w in windows {
+                        log.info("  • id=\(w.windowID, privacy: .public) rect=\(NSStringFromRect(w.screenRect), privacy: .public) folder=\(w.targetFolder.path, privacy: .public) title=\"\(w.title, privacy: .public)\"")
+                    }
+                }
+            }
 
         case .leftMouseUp:
             if state == .active {

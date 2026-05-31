@@ -1,0 +1,173 @@
+import AppKit
+import OSLog
+
+/// One visible Finder window, snapshotted at drag-start.
+///
+/// `screenRect` is in Cocoa screen coordinates (origin bottom-left, primary
+/// screen at y=0). `targetFolder` is the folder that window is showing —
+/// the destination an overlay drop would route into.
+struct FinderWindow: Sendable, Equatable {
+    let windowID: CGWindowID
+    let screenRect: NSRect
+    let targetFolder: URL
+    let title: String
+}
+
+/// Enumerates visible Finder windows and joins each one's on-screen rect
+/// (from `CGWindowList`) with its target folder (from Apple Events to Finder).
+///
+/// Snapshot once at drag-start; don't re-poll. Drags last <2s; window state
+/// changing mid-drag isn't worth the cost.
+///
+/// Apple Events run synchronously — call from off the main thread.
+actor FinderWindowSnapshot {
+
+    private let log = Logger(subsystem: "danielammann.Finder-Toolbox", category: "drag-spike")
+
+    /// Returns the qualifying Finder windows, in front-to-back z-order.
+    /// May return an empty array if no Finder windows are visible.
+    func capture() async -> [FinderWindow] {
+        let cgWindows = qualifyingCGWindows()
+        log.info("snapshot: CGWindowList → \(cgWindows.count, privacy: .public) Finder window entries")
+
+        let folderByID: [CGWindowID: (URL, String)]
+        do {
+            folderByID = try queryFinderTargets()
+            log.info("snapshot: Apple Events → \(folderByID.count, privacy: .public) targeted window(s): ids=\(folderByID.keys.map(String.init).joined(separator: ","), privacy: .public)")
+        } catch {
+            log.error("snapshot: Apple Events FAILED: \(error.localizedDescription, privacy: .public)")
+            return []
+        }
+
+        let joined = cgWindows.compactMap { entry -> FinderWindow? in
+            guard let (folder, title) = folderByID[entry.id] else { return nil }
+            return FinderWindow(
+                windowID: entry.id,
+                screenRect: entry.rect,
+                targetFolder: folder,
+                title: title
+            )
+        }
+        if joined.isEmpty && !cgWindows.isEmpty && !folderByID.isEmpty {
+            log.error("snapshot: join produced 0 windows — CG ids=\(cgWindows.map { String($0.id) }.joined(separator: ","), privacy: .public) AE ids=\(folderByID.keys.map(String.init).joined(separator: ","), privacy: .public)")
+        }
+        return joined
+    }
+
+    // MARK: - CGWindowList side
+
+    private struct CGEntry {
+        let id: CGWindowID
+        let rect: NSRect
+    }
+
+    /// Visible Finder windows from `CGWindowListCopyWindowInfo`, in
+    /// front-to-back z-order, with desktop and minimized windows filtered out.
+    private func qualifyingCGWindows() -> [CGEntry] {
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let infos = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return []
+        }
+
+        var entries: [CGEntry] = []
+        for info in infos {
+            guard let owner = info[kCGWindowOwnerName as String] as? String, owner == "Finder" else { continue }
+            guard let layer = info[kCGWindowLayer as String] as? Int, layer == 0 else { continue }
+            if let alpha = info[kCGWindowAlpha as String] as? Double, alpha == 0 { continue }
+            guard let id = info[kCGWindowNumber as String] as? CGWindowID else { continue }
+            guard let boundsDict = info[kCGWindowBounds as String] as? [String: Any],
+                  let bounds = CGRect(dictionaryRepresentation: boundsDict as CFDictionary) else { continue }
+
+            // CGWindowList bounds are in CG coords (origin top-left of the
+            // primary screen). Convert to Cocoa coords (origin bottom-left)
+            // by flipping against the primary screen height.
+            let cocoaRect = cocoaFrame(fromCGBounds: bounds)
+            entries.append(CGEntry(id: id, rect: cocoaRect))
+        }
+        return entries
+    }
+
+    private func cocoaFrame(fromCGBounds cg: CGRect) -> NSRect {
+        guard let primary = NSScreen.screens.first else { return cg }
+        let primaryHeight = primary.frame.height
+        return NSRect(
+            x: cg.origin.x,
+            y: primaryHeight - cg.origin.y - cg.size.height,
+            width: cg.size.width,
+            height: cg.size.height
+        )
+    }
+
+    // MARK: - Apple Events side
+
+    /// Asks Finder for the (id, target POSIX path, name) of every window.
+    /// Returns a dict keyed by window id for joining with the CG list.
+    ///
+    /// Some Finder windows have no target (e.g. an "About Finder" window,
+    /// or a Get Info inspector classed as `information window`). Those are
+    /// skipped silently.
+    private func queryFinderTargets() throws -> [CGWindowID: (URL, String)] {
+        // `Finder windows` is the explicit class for browser windows (the
+        // ones with a target folder). Plain `windows` would also include
+        // info, clipping, and the desktop window — none of which have a
+        // useful POSIX target.
+        // Materialize the window list once. `repeat with w in Finder windows`
+        // re-resolves `item i of Finder windows` on each iteration and blows
+        // up if anything (Spotlight overlay, ⌘-tab transient, our own focus
+        // change) mutates the collection mid-loop.
+        //
+        // `Finder windows` is the explicit class for browser windows (the
+        // ones with a target folder). Plain `windows` would also include
+        // info, clipping, and the desktop window — none of which have a
+        // useful POSIX target.
+        let source = """
+            tell application "Finder"
+                set winList to every Finder window
+                set out to {}
+                repeat with w in winList
+                    try
+                        set p to POSIX path of (target of w as alias)
+                        set end of out to {id of w, p, name of w}
+                    on error errMsg
+                        set end of out to {-1, "ERR: " & errMsg, name of w}
+                    end try
+                end repeat
+                {(count of winList), out}
+            end tell
+        """
+
+        guard let script = NSAppleScript(source: source) else {
+            throw FinderBridgeError.scriptFailed("Could not compile script")
+        }
+        var errorInfo: NSDictionary?
+        let result = script.executeAndReturnError(&errorInfo)
+        if let info = errorInfo {
+            let number = (info["NSAppleScriptErrorNumber"] as? Int) ?? 0
+            let message = (info["NSAppleScriptErrorMessage"] as? String) ?? "Unknown error"
+            if number == -1743 { throw FinderBridgeError.automationDenied }
+            throw FinderBridgeError.scriptFailed(message)
+        }
+
+        // Result is {finderWindowCount, [{id, path, name}, ...]}
+        let finderCount = result.atIndex(1)?.int32Value ?? -1
+        log.info("snapshot AE: Finder windows=\(finderCount, privacy: .public)")
+
+        var out: [CGWindowID: (URL, String)] = [:]
+        guard let list = result.atIndex(2) else { return out }
+        let count = list.numberOfItems
+        guard count > 0 else { return out }
+        for i in 1...count {
+            guard let entry = list.atIndex(i), entry.numberOfItems == 3 else { continue }
+            guard let idDesc = entry.atIndex(1),
+                  let pathDesc = entry.atIndex(2),
+                  let nameDesc = entry.atIndex(3) else { continue }
+            let rawID = idDesc.int32Value
+            let path = pathDesc.stringValue ?? ""
+            let name = nameDesc.stringValue ?? ""
+            log.info("snapshot AE entry: id=\(rawID, privacy: .public) name=\"\(name, privacy: .public)\" path=\"\(path, privacy: .public)\"")
+            guard rawID > 0, !path.hasPrefix("ERR:") else { continue }
+            out[CGWindowID(rawID)] = (URL(fileURLWithPath: path), name)
+        }
+        return out
+    }
+}
