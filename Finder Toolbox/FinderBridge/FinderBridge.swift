@@ -4,6 +4,11 @@ enum FinderBridgeError: LocalizedError {
     case noSelection
     case scriptFailed(String)
     case automationDenied
+    /// Finder reported a TCC denial on the destination of a move. Distinct
+    /// from `.automationDenied`: Automation is granted, but the AppleScript
+    /// caller (us) lacks Full Disk Access (or a per-folder Files & Folders
+    /// grant) for the move target.
+    case destinationNotPermitted
 
     var errorDescription: String? {
         switch self {
@@ -13,6 +18,8 @@ enum FinderBridgeError: LocalizedError {
             "AppleScript error: \(msg)"
         case .automationDenied:
             "Automation access to Finder has not been granted. Open System Settings → Privacy & Security → Automation to enable it."
+        case .destinationNotPermitted:
+            "The destination folder requires Full Disk Access. Open System Settings → Privacy & Security → Full Disk Access and enable Finder Toolbox."
         }
     }
 }
@@ -214,6 +221,15 @@ actor FinderBridge {
             let message = (info["NSAppleScriptErrorMessage"] as? String) ?? "Unknown error"
             if number == -1743 {
                 throw FinderBridgeError.automationDenied
+            }
+            // Finder error -10000 ("The operation can't be completed because
+            // you don't have the necessary permission.") is what TCC bubbles
+            // up when the AppleScript caller lacks Full Disk Access for the
+            // destination of a move. The exact wording varies across
+            // localizations, so match on both the AS error code and the
+            // English substring as a belt-and-suspenders check.
+            if number == -10000 || message.contains("don't have the necessary permission") {
+                throw FinderBridgeError.destinationNotPermitted
             }
             throw FinderBridgeError.scriptFailed(message)
         }

@@ -40,4 +40,18 @@ final class PermissionsManager: ObservableObject {
             NSWorkspace.shared.open(url)
         }
     }
+
+    /// Opens System Settings → Privacy & Security → Full Disk Access.
+    /// Needed for the drop-targets feature: a file *move* via Apple Events
+    /// to Finder is gated by TCC on the destination path, and TCC checks
+    /// the AppleScript caller (us) rather than Finder. Cross-folder moves
+    /// into TCC-protected locations (~/, ~/Desktop, ~/Documents,
+    /// ~/Downloads, etc.) therefore fail with "you don't have the
+    /// necessary permission" unless Finder Toolbox has Full Disk Access.
+    /// In-place renames (the hotkey path) are unaffected.
+    func openSystemSettingsForFullDiskAccess() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
+            NSWorkspace.shared.open(url)
+        }
+    }
 }

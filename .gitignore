@@ -27,3 +27,10 @@ Package.resolved.bak
 builds/
 builds_new/
 builds_signed/
+
+# Stray test artifacts at the repo root (files dropped onto a
+# drop-targets overlay when the project folder is the destination
+# land with a date prefix at the repo root).
+/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*.xml
+/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*.eml
+/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*.pdf

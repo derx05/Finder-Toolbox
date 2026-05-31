@@ -226,6 +226,21 @@ final class AppController: ObservableObject {
             return
         }
 
+        // Detect the FDA-on-destination denial. Surfaced via the failure
+        // message string because RenameOutcome.failed only carries a
+        // String, and the localized message starts with a sentinel
+        // produced by FinderBridgeError.destinationNotPermitted. Show the
+        // dedicated dialog (with the System Settings deep link) instead
+        // of the generic summary; if the move couldn't even reach Finder,
+        // the user needs the recovery path, not a per-file error list.
+        let fdaDenied = summary.failed.contains { _, error in
+            error.contains("Full Disk Access")
+        }
+        if fdaDenied {
+            SummaryDialog.showFullDiskAccessRequired()
+            return
+        }
+
         lastBatch = summary.outcomes.compactMap { outcome in
             if case .renamed(let from, let to) = outcome {
                 return RenameRecord(renamedURL: to, originalName: from.lastPathComponent)
