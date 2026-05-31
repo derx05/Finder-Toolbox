@@ -7,9 +7,9 @@
 | Field | Details |
 |---|---|
 | **Type** | Native macOS app (SwiftUI), menu bar utility |
-| **Stage** | v1 shipped (1.0.0 Beta, 2026-05-18). In daily self-dogfooding; iterating toward a public-ready v1.x |
+| **Stage** | 1.0.0 Beta shipped 2026-05-18. In daily self-dogfooding; iterating on planned follow-ups |
 | **Team** | Solo (Daniel) |
-| **Timeline** | No deadline. Iterative — ship a working v1 prototype quickly, then grow |
+| **Timeline** | No deadline. Iterative — ship a working prototype quickly, then grow |
 | **Distribution** | Direct distribution, Developer ID signed + notarized (App Store ruled out — see below) |
 
 **Problem**
@@ -28,7 +28,7 @@ Power users on macOS who live in Finder and have an opinionated filing conventio
 ### Vision
 A small, energy-efficient toolbox of Finder-aware utilities that pro users invoke with the keyboard. The renamer is the first tool; the architecture should leave room for further tools (e.g. quick-move, batch-tagging, format conversion, archive helpers) under the same menu bar surface, without bloating the app or becoming a kitchen-sink launcher.
 
-### Core Features (MVP — v1)
+### Core features (released)
 
 **Global hotkey rename**
 A user-configurable global hotkey takes the current Finder selection and renames each file according to the configured convention. Single keystroke, no app to focus. Implemented via Apple Events to Finder (with the user granting Automation permission for Finder on first use — a one-time native macOS prompt).
@@ -36,8 +36,8 @@ A user-configurable global hotkey takes the current Finder selection and renames
 **Smart date detection & reformatting**
 For each filename, detect a date prefix at the start of the name (supported formats: `YYMMDD`, `YY-MM-DD`, `YYYYMMDD`, `YYYY-MM-DD`, `DD.MM.YYYY`, `DDMMYY`, and common variants with `_`, `-`, or space separators). If found, reformat to the canonical output. If not, prepend today's date. Dates appearing **mid-filename** are left alone — only leading dates are touched.
 
-**Canonical output format (v1, fixed)**
-`YYYY-MM-DD Name.ext` — a literal space between the date and the name. v1 ships this format hard-coded; v2 makes it configurable in settings.
+**Canonical output format**
+`YYYY-MM-DD Name.ext` — a literal space between the date and the name. The format is configurable in Settings (multiple date formats shipped in 1.0.0 Beta); separator configurability is planned.
 
 **Conflict resolution matching Finder**
 If the target filename already exists in the destination folder, append a suffix the way Finder does for duplicates (` 2`, ` 3`, …) rather than a custom scheme — keeps the user's mental model consistent.
@@ -48,14 +48,14 @@ Because renames go through Apple Events to Finder, they land in Finder's own und
 **Subtle, adaptive feedback**
 - Single-file or fast batches: silent and instant. No HUD, no notification.
 - Adaptive progress: if the operation passes ~2 seconds and is less than ~50% complete, show a progress indicator. (Don't flash one up unnecessarily.)
-- End-of-batch: a summary dialog **only** when something needs attention — skipped files, conflicts, errors. Clean runs are silent. (v2: make this configurable.)
+- End-of-batch: a summary dialog **only** when something needs attention — skipped files, conflicts, errors. Clean runs are silent. (Planned: a verbosity setting — always / on issues only (current) / never.)
 
 **Menu bar presence**
 Menu bar icon, no Dock icon. Click reveals: Settings…, Quit, and (later) recent rename history. Designed to be unobtrusive — the user almost never interacts with it directly; the hotkey is the primary surface.
 
-### Out of scope (for v1)
+### Out of scope (for the initial release)
 
-> Note: `.eml` `Date:` header extraction and the folder-rename mode dialog were originally listed as out-of-scope / v2 items but ended up shipping in 1.0.0 Beta. Remaining out-of-scope items below.
+> Note: `.eml` `Date:` header extraction and the folder-rename mode dialog were originally listed as out-of-scope items but ended up shipping in 1.0.0 Beta. Remaining out-of-scope items below.
 
 - PDF metadata, image EXIF extraction
 - Folder watcher / drop folder auto-rename
@@ -89,7 +89,7 @@ Most existing renamers are either heavy bulk-rename apps (NameChanger, A Better 
 - **Budget**: Personal project; no external funding.
 - **Distribution**: Direct (signed + notarized DMG). App Store sandbox is incompatible with the global-hotkey-on-Finder-selection interaction model.
 - **API discipline**: Use only official, public macOS APIs. No private framework calls. Apple Events / Automation permissions are explicitly considered acceptable — they are the *intended* mechanism for this kind of cross-app integration.
-- **Energy efficiency**: Idle CPU near zero. No polling loops; no constant background work in v1. Folder-watching (v2) must use `FSEvents`, not directory polling.
+- **Energy efficiency**: Idle CPU near zero. No polling loops; no constant background work. Any future folder-watching must use `FSEvents`, not directory polling.
 - **Deployment target**: macOS 15.6+. Swift 5 mode, default `@MainActor` isolation.
 - **Concurrency**: Code is `MainActor` by default per build settings; long-running rename batches must explicitly hop off the main thread.
 
@@ -97,17 +97,17 @@ Most existing renamers are either heavy bulk-rename apps (NameChanger, A Better 
 
 | Timeframe | What success looks like |
 |---|---|
-| **v1 prototype** | Daniel uses it daily for his own `.eml` / PDF filing. Hotkey works reliably. Finder undo works for batches. No regressions vs. doing it by hand. |
-| **3 months** | v2 features (configurable format, `.eml` extraction, filename cleanup) shipped. Stable enough that it survives a macOS point update without breaking. |
+| **Initial release** | Daniel uses it daily for his own `.eml` / PDF filing. Hotkey works reliably. Finder undo works for batches. No regressions vs. doing it by hand. |
+| **3 months** | Planned follow-ups (filename cleanup, image EXIF, separator config, summary verbosity) shipped. Stable enough that it survives a macOS point update without breaking. |
 | **1 year** | At least one additional toolbox utility shipped (TBD). If quality is high, soft-published (personal site, small Show HN). Optional. |
 
-A successful v1 is judged purely by *Daniel's own daily use*. Public release is a stretch, not a metric.
+Success is judged purely by *Daniel's own daily use*. Public release is a stretch, not a metric.
 
 ### Key risks & open questions
 
 - **Finder undo grouping for batched renames**
   *Risk:* Apple Events instructs Finder to perform N renames; Finder may push N undo entries instead of one batch. If true, ⌘Z would only undo the last file.
-  *Mitigation:* During v1, prototype the batch path early and verify undo behavior with a 10-file rename. If grouping fails, options are: (a) wrap the batch in a single AppleScript `tell` block and hope Finder coalesces, (b) accept N undo steps and document, (c) provide a fallback "Undo last batch" menu bar action. Do not architect around this until the actual Finder behavior is observed.
+  *Mitigation:* Prototyped the batch path early and verified undo behavior with a 10-file rename — wrapping the batch in a single AppleScript `tell` block makes Finder coalesce it into one undo entry. Validated in the shipped renamer; fallback options (accept N undo steps; maintain our own "Undo last batch" log) remain available if Finder's grouping behavior ever regresses.
 
 - **Apple Events permission UX on first run**
   *Risk:* User dismisses or denies the Automation prompt for Finder, breaking the app silently.
@@ -121,10 +121,10 @@ A successful v1 is judged purely by *Daniel's own daily use*. Public release is 
   *Risk:* Toolbox umbrella tempts feature accretion that dilutes the simple "smash one key, files renamed" interaction.
   *Mitigation:* Every new feature must answer: does this preserve the hotkey-driven, headless-by-default model? GUIs are reserved for settings and exception handling.
 
-- **Performance vs. undo trade-off (v3+)**
+- **Performance vs. undo trade-off (future)**
   Apple Events to Finder is slower per file than `NSFileManager.moveItem`. For human-scale batches it's fine; for thousand-file batches it may not be. Roadmap item: a settings toggle "Prefer undo / Prefer speed / Auto" that switches rename API based on batch size.
 
-### What shipped in v1 (1.0.0 Beta)
+### What shipped in 1.0.0 Beta
 
 - Direct-distribution project config (sandbox off, hardened runtime on, entitlements + Automation usage description wired).
 - Menu bar app via `MenuBarExtra`, `LSUIElement = YES`, no Dock icon. Settings window with hotkey rebinding, file-renaming options, and About page.
@@ -133,11 +133,11 @@ A successful v1 is judged purely by *Daniel's own daily use*. Public release is 
 - Global hotkey (default `⌃⌥⌘R`), rebindable in Settings.
 - Adaptive progress window; end-of-batch summary dialog only on issues.
 - Automation-permission denial path with a System Settings deep link.
-- **Past the original v1 scope:** `.eml` `Date:` header extraction, a folder-rename mode dialog (recursive / ask / two-hotkey), Start at Login, and a quit-existing-release-on-debug-launch developer affordance.
+- **Past the original scope:** `.eml` `Date:` header extraction, a folder-rename mode dialog (recursive / ask / two-hotkey), Start at Login, and a quit-existing-release-on-debug-launch developer affordance.
 
-### Outstanding before "v1 complete"
+### Outstanding follow-ups from the initial release
 
-1. **Unit test target** for `DateDetector` and `EmlDateExtractor` — the one v1 checklist item still open.
-2. **Two weeks of self-dogfooding** (release was 2026-05-18; today is 2026-05-20). Decide what's wrong in actual daily use before greenlighting v2.
+1. **Unit test target** for `DateDetector` and `EmlDateExtractor` — the one checklist item still open from the initial release.
+2. **Two weeks of self-dogfooding** (release was 2026-05-18). Decide what's wrong in actual daily use before greenlighting the next batch of planned features.
 
-See `ROADMAP.md` for the versioned plan past v1, and `docs/architecture-notes.md` for the load-bearing technical decisions.
+See `ROADMAP.md` for the released / planned / future breakdown, and `docs/architecture-notes.md` for the load-bearing technical decisions.
