@@ -51,6 +51,13 @@ final class AppController: ObservableObject {
             Task { @MainActor in await self?.performRename(forcedFolderMode: .recursive) }
         }
         HotkeyManager.shared.setup()
+
+        #if DEBUG
+        // Issue #29 day-one spike: validate drag-pasteboard detection before
+        // building overlay UI. Logs to subsystem `danielammann.Finder-Toolbox`,
+        // category `drag-spike`. Remove once the spike findings are recorded.
+        DragSessionSpike.shared.start()
+        #endif
     }
 
     #if DEBUG
