@@ -9,16 +9,18 @@ final class DropOverlayPanel: NSPanel {
 
     let target: FinderWindow
 
-    static let panelSize = NSSize(width: 220, height: 36)
-    /// Gap between the Finder window's top edge and the overlay's bottom edge.
-    static let topGap: CGFloat = 6
+    static let panelSize = NSSize(width: 210, height: 58)
+    /// Inset from the Finder window's bottom-right corner. Matches the
+    /// window's corner radius so the overlay sits flush against the
+    /// inside of the rounded corner without visually clipping it.
+    static let cornerInset: CGFloat = 10
 
     init(target: FinderWindow) {
         self.target = target
         let frame = Self.overlayFrame(for: target)
         super.init(
             contentRect: frame,
-            styleMask: [.nonactivatingPanel, .borderless, .hudWindow],
+            styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
             defer: false
         )
@@ -36,24 +38,24 @@ final class DropOverlayPanel: NSPanel {
         backgroundColor = .clear
         hasShadow = true
         ignoresMouseEvents = false
+        // Match the user's current system appearance (Finder follows it
+        // too), so the overlay reads as part of the Finder window rather
+        // than as an alien HUD.
+        appearance = NSApp.effectiveAppearance
 
         let view = DropOverlayView(folderName: target.targetFolder.lastPathComponent)
         contentView = view
     }
 
-    /// Compute the on-screen frame for this overlay: centered on the
-    /// Finder window's top edge, with a small gap, then clamped hard to
-    /// the screen's visible frame so it's never hidden behind the menu
-    /// bar (or off the left/right edge for off-center windows).
-    ///
-    /// Maximized Finder windows have their title bar right at the top
-    /// of the screen, which would put the "above title bar" position
-    /// behind the menu bar; this routine detects that and tucks the
-    /// overlay just inside the top of the window instead.
+    /// Compute the on-screen frame for this overlay: anchored to the
+    /// inside of the Finder window's bottom-right corner, inset by
+    /// `cornerInset` on both edges. Clamped to the screen's visible
+    /// frame as a final safety net (for unusually small Finder windows
+    /// whose bottom edge is below the dock).
     static func overlayFrame(for target: FinderWindow) -> NSRect {
         let size = panelSize
-        var x = target.screenRect.midX - size.width / 2
-        var y = target.screenRect.maxY + topGap
+        var x = target.screenRect.maxX - size.width - cornerInset
+        var y = target.screenRect.minY + cornerInset
 
         let screen = NSScreen.screens.first(where: { $0.frame.intersects(target.screenRect) })
             ?? NSScreen.main
@@ -61,16 +63,7 @@ final class DropOverlayPanel: NSPanel {
 
         if let screen {
             let visible = screen.visibleFrame
-            let topLimit = visible.maxY - size.height
-
-            // If "above the title bar" would clip behind the menu bar,
-            // tuck below the title bar instead.
-            if y > topLimit {
-                y = target.screenRect.maxY - size.height - topGap
-            }
-            // Hard clamp — handles maximized windows whose top edge is
-            // itself above visibleFrame, or any other edge case.
-            y = min(max(y, visible.minY), topLimit)
+            y = min(max(y, visible.minY), visible.maxY - size.height)
             x = min(max(x, visible.minX), visible.maxX - size.width)
         }
         return NSRect(x: x, y: y, width: size.width, height: size.height)
