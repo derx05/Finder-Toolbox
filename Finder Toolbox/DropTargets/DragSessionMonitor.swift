@@ -51,6 +51,17 @@ final class DragSessionMonitor {
     private func handle(_ event: NSEvent) {
         switch event.type {
         case .leftMouseDown:
+            // Drag sessions occasionally swallow the trailing .leftMouseUp
+            // before it reaches a global event monitor (the drag-back
+            // animation after a rejected drop is the usual repro). Without
+            // this guard the state machine gets stuck in .active and the
+            // next drag's .leftMouseDragged short-circuits at the .armed
+            // check — overlays never show. Synthesize the missed end so
+            // the new mouseDown starts cleanly.
+            if state == .active {
+                log.debug("synthesizing drag-ended (missed mouseUp before mouseDown)")
+                onDragEnded?()
+            }
             armedChangeCount = pasteboard.changeCount
             state = .armed
 

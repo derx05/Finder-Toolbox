@@ -45,10 +45,10 @@ struct SettingsView: View {
             }
         }
         .navigationSplitViewStyle(.prominentDetail)
-        // ~40% wider/taller than the original 620×400 — the Permissions
-        // and PDF settings pages are dense enough that the original
-        // minimum forced a lot of scrolling.
-        .frame(minWidth: 870, minHeight: 560)
+        // ~2x the original 620×400 default. The Permissions and PDF
+        // pages are dense enough that the old window forced lots of
+        // scrolling; users were resizing every time.
+        .frame(minWidth: 1220, minHeight: 780)
         .onAppear { columnVisibility = .all }
         .onChange(of: columnVisibility) { columnVisibility = .all }
         .background(ResizableWindowAccessor())

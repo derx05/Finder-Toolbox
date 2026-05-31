@@ -18,12 +18,19 @@ final class DropTargetsCoordinator {
 
     private var panels: [DropOverlayPanel] = []
 
-    /// Most recent Finder-window snapshot. AppleEvents to Finder cost
-    /// ~1–3s on a cold call, far longer than a typical drag, so we can't
-    /// fetch on drag-start. Cache is prefetched at startup, refreshed
-    /// after each drag ends, and consulted instantly on the next drag.
-    private var cachedWindows: [FinderWindow] = []
+    /// Long-lived map of Finder window IDs to their target folder + name.
+    /// AppleEvents to Finder cost ~1–3s on a cold call, but the data is
+    /// stable across Space switches (window IDs don't change when you
+    /// switch Spaces — only the visible subset does). On every drag-start
+    /// we get the current Space's visible windows synchronously from
+    /// CGWindowList and join with this cache, giving correct overlays
+    /// instantly even right after a Space change.
+    ///
+    /// Refreshed after each drag ends (catches newly-opened Finder
+    /// windows) and at startup.
+    private var folderByID: [CGWindowID: (URL, String)] = [:]
     private var refreshTask: Task<Void, Never>?
+    private var spaceObserver: NSObjectProtocol?
 
     private init() {}
 
@@ -31,34 +38,63 @@ final class DropTargetsCoordinator {
         monitor.onDragStarted = { [weak self] in self?.handleDragStarted() }
         monitor.onDragEnded   = { [weak self] in self?.handleDragEnded() }
         monitor.start()
-        log.info("DropTargetsCoordinator started — warming snapshot cache")
-        refreshCache()
+
+        // The folder cache survives Space switches (window IDs don't
+        // change), but a Space change may bring a previously-unseen
+        // Finder window into view — kick off a refresh so its ID maps
+        // to a folder by the time the user's next drag-end refresh
+        // would have caught it anyway. Cheap and keeps things current.
+        spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.log.debug("active Space changed — refreshing folder map")
+                self?.refreshFolderMap()
+            }
+        }
+
+        log.info("DropTargetsCoordinator started — warming folder map")
+        refreshFolderMap()
     }
 
     private func handleDragStarted() {
-        if cachedWindows.isEmpty {
-            log.debug("drag started but snapshot cache empty — first-drag-after-launch race; skipping overlays")
-            refreshCache()
+        // Fast path: synchronous CGWindowList + cached folder map. Works
+        // immediately after a Space switch because window IDs are stable.
+        let cgWindows = FinderWindowSnapshot.currentVisibleFinderWindows()
+        let windows: [FinderWindow] = cgWindows.compactMap { entry in
+            guard let (folder, title) = self.folderByID[entry.id] else { return nil }
+            return FinderWindow(
+                windowID: entry.id,
+                screenRect: entry.rect,
+                targetFolder: folder,
+                title: title
+            )
+        }
+        if windows.isEmpty && !cgWindows.isEmpty {
+            log.debug("drag started — \(cgWindows.count, privacy: .public) CG windows but no folder-map matches; first-drag-after-launch? refreshing")
+            refreshFolderMap()
             return
         }
-        showPanels(for: cachedWindows)
+        showPanels(for: windows)
     }
 
     private func handleDragEnded() {
         hidePanels()
-        // User just interacted with Finder; refresh the cache so the next
-        // drag sees up-to-date window positions / targets.
-        refreshCache()
+        // Catch any Finder windows the user opened during/around the
+        // drag so their IDs land in the folder map.
+        refreshFolderMap()
     }
 
-    private func refreshCache() {
+    private func refreshFolderMap() {
         refreshTask?.cancel()
         refreshTask = Task { [weak self] in
             guard let self else { return }
-            let windows = await self.snapshot.capture()
+            let map = await self.snapshot.captureFolderMap()
             if Task.isCancelled { return }
-            self.cachedWindows = windows
-            self.log.debug("cache refreshed: \(windows.count, privacy: .public) Finder window(s)")
+            self.folderByID = map
+            self.log.debug("folder map: \(map.count, privacy: .public) entries")
         }
     }
 
@@ -68,8 +104,13 @@ final class DropTargetsCoordinator {
             log.debug("no qualifying Finder windows — skipping overlays")
             return
         }
+        log.info("showing overlays for windows:")
+        for window in windows {
+            log.info("  Finder win id=\(window.windowID, privacy: .public) rect=\(NSStringFromRect(window.screenRect), privacy: .public) folder=\(window.targetFolder.path, privacy: .public) title=\"\(window.title, privacy: .public)\"")
+        }
         for window in windows {
             let panel = DropOverlayPanel(target: window)
+            log.info("  panel for \"\(window.title, privacy: .public)\" placed at \(NSStringFromRect(panel.frame), privacy: .public)")
             (panel.contentView as? DropOverlayView)?.onDrop = { [weak self] urls, tempDir in
                 guard let self else { return }
                 self.log.info("drop accepted: \(urls.count, privacy: .public) file(s) → \(window.targetFolder.path, privacy: .public)")

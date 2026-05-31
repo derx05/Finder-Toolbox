@@ -61,7 +61,9 @@ final class DropOverlayView: NSView {
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
         let types = sender.draggingPasteboard.types ?? []
         let sourceMask = sender.draggingSourceOperationMask
-        log.info("draggingEntered[\(self.folderName, privacy: .public)] sourceMask=\(sourceMask.rawValue, privacy: .public) types=\(types.map(\.rawValue).joined(separator: ","), privacy: .public)")
+        let mouseInScreen = NSEvent.mouseLocation
+        let panelFrame = window?.frame ?? .zero
+        log.info("draggingEntered[\(self.folderName, privacy: .public)] mouseAt=\(NSStringFromPoint(mouseInScreen), privacy: .public) panelFrame=\(NSStringFromRect(panelFrame), privacy: .public) sourceMask=\(sourceMask.rawValue, privacy: .public)")
         layer?.backgroundColor = NSColor.systemGreen.withAlphaComponent(0.95).cgColor
         // Prefer copy; fall back to whatever the source allows so the drop
         // isn't rejected if the source only offers .move or .generic.

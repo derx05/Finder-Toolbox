@@ -16,54 +16,56 @@ struct FinderWindow: Sendable, Equatable {
 /// Enumerates visible Finder windows and joins each one's on-screen rect
 /// (from `CGWindowList`) with its target folder (from Apple Events to Finder).
 ///
-/// Snapshot once at drag-start; don't re-poll. Drags last <2s; window state
-/// changing mid-drag isn't worth the cost.
+/// Designed around the two-speed nature of the data:
+/// - `currentVisibleFinderWindows()` is synchronous and fast (~1–2 ms);
+///   `CGWindowListCopyWindowInfo` returns the current Space's visible
+///   windows immediately. Safe to call on every drag-start.
+/// - `captureFolderMap()` is async and slow (~1–3 s cold); it round-trips
+///   through Apple Events to Finder for the target folder of every Finder
+///   window the user has open. Cache it long-term and refresh after each
+///   drag and when a new Finder window may have appeared.
 ///
-/// Apple Events run synchronously — call from off the main thread.
+/// The folder map is keyed by `kCGWindowNumber`, which equals Finder's
+/// AppleScript `id of window` on macOS 15.6 (validated in the day-one
+/// spike for issue #29). Window IDs are stable across Space switches —
+/// only the set of *visible* windows changes — which is why pairing a
+/// fast CG fetch with a long-lived folder cache gives correct results
+/// instantly even right after a Space switch.
 actor FinderWindowSnapshot {
 
     private let log = Logger(subsystem: "danielammann.Finder-Toolbox", category: "drop-targets")
 
-    /// Returns the qualifying Finder windows, in front-to-back z-order.
-    /// May return an empty array if no Finder windows are visible.
-    func capture() async -> [FinderWindow] {
-        let cgWindows = qualifyingCGWindows()
-        log.info("snapshot: CGWindowList → \(cgWindows.count, privacy: .public) Finder window entries")
-
-        let folderByID: [CGWindowID: (URL, String)]
-        do {
-            folderByID = try queryFinderTargets()
-            log.info("snapshot: Apple Events → \(folderByID.count, privacy: .public) targeted window(s): ids=\(folderByID.keys.map(String.init).joined(separator: ","), privacy: .public)")
-        } catch {
-            log.error("snapshot: Apple Events FAILED: \(error.localizedDescription, privacy: .public)")
-            return []
-        }
-
-        let joined = cgWindows.compactMap { entry -> FinderWindow? in
-            guard let (folder, title) = folderByID[entry.id] else { return nil }
-            return FinderWindow(
-                windowID: entry.id,
-                screenRect: entry.rect,
-                targetFolder: folder,
-                title: title
-            )
-        }
-        if joined.isEmpty && !cgWindows.isEmpty && !folderByID.isEmpty {
-            log.error("snapshot: join produced 0 windows — CG ids=\(cgWindows.map { String($0.id) }.joined(separator: ","), privacy: .public) AE ids=\(folderByID.keys.map(String.init).joined(separator: ","), privacy: .public)")
-        }
-        return joined
-    }
-
-    // MARK: - CGWindowList side
-
-    private struct CGEntry {
+    struct CGEntry: Sendable {
         let id: CGWindowID
         let rect: NSRect
     }
 
+    /// Synchronous; safe to call from the main actor on the drag-start
+    /// hot path. Returns the current Space's visible Finder windows in
+    /// front-to-back z-order with their on-screen rects in Cocoa coords.
+    nonisolated static func currentVisibleFinderWindows() -> [CGEntry] {
+        qualifyingCGWindowsRaw()
+    }
+
+    /// Async; pairs each window ID with its target folder POSIX path via
+    /// Apple Events to Finder. Cache the result long-term — the join with
+    /// fresh CG entries at drag-start handles Space switches correctly.
+    func captureFolderMap() async -> [CGWindowID: (URL, String)] {
+        do {
+            let map = try queryFinderTargets()
+            log.info("captureFolderMap: \(map.count, privacy: .public) Finder window(s) cached")
+            return map
+        } catch {
+            log.error("captureFolderMap: Apple Events FAILED: \(error.localizedDescription, privacy: .public)")
+            return [:]
+        }
+    }
+
+    // MARK: - CGWindowList side
+
     /// Visible Finder windows from `CGWindowListCopyWindowInfo`, in
     /// front-to-back z-order, with desktop and minimized windows filtered out.
-    private func qualifyingCGWindows() -> [CGEntry] {
+    nonisolated private static func qualifyingCGWindowsRaw() -> [CGEntry] {
         let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
         guard let infos = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
             return []
@@ -81,13 +83,13 @@ actor FinderWindowSnapshot {
             // CGWindowList bounds are in CG coords (origin top-left of the
             // primary screen). Convert to Cocoa coords (origin bottom-left)
             // by flipping against the primary screen height.
-            let cocoaRect = cocoaFrame(fromCGBounds: bounds)
+            let cocoaRect = Self.cocoaFrame(fromCGBounds: bounds)
             entries.append(CGEntry(id: id, rect: cocoaRect))
         }
         return entries
     }
 
-    private func cocoaFrame(fromCGBounds cg: CGRect) -> NSRect {
+    nonisolated private static func cocoaFrame(fromCGBounds cg: CGRect) -> NSRect {
         guard let primary = NSScreen.screens.first else { return cg }
         let primaryHeight = primary.frame.height
         return NSRect(
