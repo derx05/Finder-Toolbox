@@ -5,6 +5,7 @@ import AppKit
 enum SettingsPage: Hashable {
     case general
     case fileRenaming
+    case permissions
     case about
 }
 
@@ -33,6 +34,10 @@ struct SettingsView: View {
                 FileRenamingSettingsPage()
                     .navigationTitle("")
                     .toolbar(.hidden)
+            case .permissions:
+                PermissionsSettingsPage()
+                    .navigationTitle("")
+                    .toolbar(.hidden)
             case .about:
                 AboutPage()
                     .navigationTitle("")
@@ -40,7 +45,10 @@ struct SettingsView: View {
             }
         }
         .navigationSplitViewStyle(.prominentDetail)
-        .frame(minWidth: 620, minHeight: 400)
+        // ~40% wider/taller than the original 620×400 — the Permissions
+        // and PDF settings pages are dense enough that the original
+        // minimum forced a lot of scrolling.
+        .frame(minWidth: 870, minHeight: 560)
         .onAppear { columnVisibility = .all }
         .onChange(of: columnVisibility) { columnVisibility = .all }
         .background(ResizableWindowAccessor())
@@ -76,6 +84,12 @@ private struct SettingsSidebar: View {
             Section("Features") {
                 NavigationLink(value: SettingsPage.fileRenaming) {
                     Label("File Renaming", systemImage: "pencil.and.outline")
+                }
+            }
+
+            Section("System") {
+                NavigationLink(value: SettingsPage.permissions) {
+                    Label("Permissions", systemImage: "lock.shield")
                 }
             }
 

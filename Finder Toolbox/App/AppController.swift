@@ -219,6 +219,19 @@ final class AppController: ObservableObject {
         isRenaming = true
         defer { isRenaming = false }
 
+        // Proactive TCC check: if the target folder is TCC-gated and we
+        // don't have Full Disk Access, the move via Finder Apple Events
+        // will fail after macOS shows a misleading "Finder wants to make
+        // changes" prompt (the OS attributes the request to Finder
+        // visually but checks our TCC context). Short-circuit before
+        // touching Finder so the user sees one clean dialog with a deep
+        // link instead of a confusing two-prompt loop.
+        if PermissionsManager.shared.isTCCGatedDestination(targetFolder),
+           !PermissionsManager.shared.hasFullDiskAccess() {
+            SummaryDialog.showFullDiskAccessRequired()
+            return
+        }
+
         let summary = await executor.executeDrop(urls: urls, into: targetFolder)
 
         if PermissionsManager.shared.finderAutomationStatus == .denied {

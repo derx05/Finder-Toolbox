@@ -70,12 +70,19 @@ final class DropTargetsCoordinator {
         }
         for window in windows {
             let panel = DropOverlayPanel(target: window)
-            (panel.contentView as? DropOverlayView)?.onDrop = { [weak self] urls in
+            (panel.contentView as? DropOverlayView)?.onDrop = { [weak self] urls, tempDir in
                 guard let self else { return }
                 self.log.info("drop accepted: \(urls.count, privacy: .public) file(s) → \(window.targetFolder.path, privacy: .public)")
                 let targetFolder = window.targetFolder
                 Task { @MainActor in
                     await AppController.shared.performDrop(urls: urls, into: targetFolder)
+                    // Cleanup: the materialize-to-temp dir is now empty
+                    // (Finder moved the files out). Best-effort removal —
+                    // a leftover directory under /var/folders is harmless
+                    // but tidiness is cheap.
+                    if let tempDir {
+                        try? FileManager.default.removeItem(at: tempDir)
+                    }
                 }
             }
             panel.orderFrontRegardless()

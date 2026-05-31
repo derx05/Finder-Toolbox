@@ -13,10 +13,12 @@ final class DropOverlayView: NSView {
     /// Promised files have already been materialized into `tempDir` before
     /// this fires; plain file URLs come through as-is.
     ///
-    /// `tempDir` is the destination passed to `NSFilePromiseReceiver`. The
-    /// caller owns its lifetime — leave it on disk until the rename
-    /// pipeline has moved the files into Finder's target folder.
-    var onDrop: ((_ urls: [URL]) -> Void)?
+    /// `tempDir` is non-nil iff at least one promise was materialized.
+    /// The receiver is responsible for cleaning it up *after* the rename
+    /// pipeline has moved the files out — the temp dir lives under
+    /// `NSTemporaryDirectory()` (`/var/folders/.../T/`), not the project
+    /// folder, so a missed cleanup leaves an empty dir at most.
+    var onDrop: ((_ urls: [URL], _ tempDir: URL?) -> Void)?
 
     private let log = Logger(subsystem: "danielammann.Finder-Toolbox", category: "drop-targets")
     private let label = NSTextField(labelWithString: "")
@@ -94,6 +96,7 @@ final class DropOverlayView: NSView {
 
         let pb = sender.draggingPasteboard
         var resolved: [URL] = []
+        var tempDir: URL?
 
         // Plain file URLs (Finder drags).
         if let urls = pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] {
@@ -101,46 +104,49 @@ final class DropOverlayView: NSView {
         }
 
         // Promised files (Mail, Safari, …). The receiver hands back an
-        // NSFilePromiseReceiver per item; we ask each to materialize into
-        // a temp dir. Step-3 just logs the result.
+        // NSFilePromiseReceiver per item; each materializes its file
+        // into a temp dir on demand. Lives under NSTemporaryDirectory
+        // (`/var/folders/.../T/`), not the project — cleanup runs in
+        // the coordinator after the rename pipeline moves the files out.
         let promiseReceivers = pb.readObjects(forClasses: [NSFilePromiseReceiver.self], options: nil) as? [NSFilePromiseReceiver] ?? []
         if !promiseReceivers.isEmpty {
-            let tempDir = FileManager.default.temporaryDirectory
+            let dir = FileManager.default.temporaryDirectory
                 .appendingPathComponent("finder-toolbox-drop-\(UUID().uuidString)")
             do {
-                try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                tempDir = dir
             } catch {
                 log.error("dropOverlay: failed to create temp dir: \(error.localizedDescription, privacy: .public)")
             }
 
-            let group = DispatchGroup()
-            var promisedURLs: [URL] = []
-            let lock = NSLock()
-            for receiver in promiseReceivers {
-                group.enter()
-                receiver.receivePromisedFiles(atDestination: tempDir, options: [:], operationQueue: promiseQueue) { url, error in
-                    if let error {
-                        self.log.error("dropOverlay: promise receive failed: \(error.localizedDescription, privacy: .public)")
-                    } else {
-                        lock.lock()
-                        promisedURLs.append(url)
-                        lock.unlock()
+            if let dir = tempDir {
+                let group = DispatchGroup()
+                var promisedURLs: [URL] = []
+                let lock = NSLock()
+                for receiver in promiseReceivers {
+                    group.enter()
+                    receiver.receivePromisedFiles(atDestination: dir, options: [:], operationQueue: promiseQueue) { url, error in
+                        if let error {
+                            self.log.error("dropOverlay: promise receive failed: \(error.localizedDescription, privacy: .public)")
+                        } else {
+                            lock.lock()
+                            promisedURLs.append(url)
+                            lock.unlock()
+                        }
+                        group.leave()
                     }
-                    group.leave()
                 }
+                // Wait off the main thread, then dispatch back. The pasteboard
+                // server is hung on us returning from performDragOperation, but
+                // promise fulfillment runs on the promiseQueue, not main —
+                // ok to block briefly.
+                group.wait()
+                resolved.append(contentsOf: promisedURLs)
             }
-            // Wait off the main thread, then dispatch back. The pasteboard
-            // server is hung on us returning from performDragOperation, but
-            // promise fulfillment runs on the promiseQueue, not main —
-            // ok to block briefly. (Step-4 will move this onto a Task and
-            // return true synchronously so the source app sees the drop
-            // settle immediately.)
-            group.wait()
-            resolved.append(contentsOf: promisedURLs)
         }
 
         log.info("dropOverlay[\(self.folderName, privacy: .public)]: drop resolved \(resolved.count, privacy: .public) file(s): \(resolved.map(\.lastPathComponent).joined(separator: ", "), privacy: .public)")
-        onDrop?(resolved)
+        onDrop?(resolved, tempDir)
         return !resolved.isEmpty
     }
 }
