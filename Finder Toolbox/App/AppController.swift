@@ -53,10 +53,9 @@ final class AppController: ObservableObject {
         HotkeyManager.shared.setup()
 
         #if DEBUG
-        // Issue #29 day-one spike: validate drag-pasteboard detection before
-        // building overlay UI. Logs to subsystem `danielammann.Finder-Toolbox`,
-        // category `drag-spike`. Remove once the spike findings are recorded.
-        DragSessionSpike.shared.start()
+        // Issue #29 drag-time drop targets — DEBUG-only while in development.
+        // No settings yet; always-on when running a debug build.
+        DropTargetsCoordinator.shared.start()
         #endif
     }
 

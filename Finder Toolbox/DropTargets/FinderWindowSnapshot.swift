@@ -22,7 +22,7 @@ struct FinderWindow: Sendable, Equatable {
 /// Apple Events run synchronously — call from off the main thread.
 actor FinderWindowSnapshot {
 
-    private let log = Logger(subsystem: "danielammann.Finder-Toolbox", category: "drag-spike")
+    private let log = Logger(subsystem: "danielammann.Finder-Toolbox", category: "drop-targets")
 
     /// Returns the qualifying Finder windows, in front-to-back z-order.
     /// May return an empty array if no Finder windows are visible.
