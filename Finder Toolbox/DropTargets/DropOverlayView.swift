@@ -26,7 +26,6 @@ final class DropOverlayView: NSView {
     private let iconView = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "File Renamer")
     private let folderLabel = NSTextField(labelWithString: "")
-    private let promiseQueue = OperationQueue()
 
     init(folderName: String) {
         self.folderName = folderName
@@ -100,11 +99,17 @@ final class DropOverlayView: NSView {
             textStack.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
 
-        // Promise types include file URLs and the file-promise UTIs from
-        // NSFilePromiseReceiver.readableDraggedTypes (covers Mail.app,
-        // Safari downloads, Photos exports, etc.).
+        // Registered drag types:
+        // - .fileURL covers plain Finder drags.
+        // - NSFilePromiseReceiver.readableDraggedTypes covers modern
+        //   NSFilePromiseProvider-based promises (Safari, Photos, …).
+        // - The legacy `Apple files promise pasteboard type` is needed
+        //   for Mail.app, which only honours the legacy promise contract
+        //   even though it writes the modern markers to the pasteboard.
         var types: [NSPasteboard.PasteboardType] = [.fileURL]
         types.append(contentsOf: NSFilePromiseReceiver.readableDraggedTypes.map { NSPasteboard.PasteboardType($0) })
+        types.append(NSPasteboard.PasteboardType("Apple files promise pasteboard type"))
+        types.append(NSPasteboard.PasteboardType("NSPromiseContentsPboardType"))
         registerForDraggedTypes(types)
     }
 
@@ -185,7 +190,8 @@ final class DropOverlayView: NSView {
         let sourceMask = sender.draggingSourceOperationMask
         let mouseInScreen = NSEvent.mouseLocation
         let panelFrame = window?.frame ?? .zero
-        log.info("draggingEntered[\(self.folderName, privacy: .public)] mouseAt=\(NSStringFromPoint(mouseInScreen), privacy: .public) panelFrame=\(NSStringFromRect(panelFrame), privacy: .public) sourceMask=\(sourceMask.rawValue, privacy: .public)")
+        let types = sender.draggingPasteboard.types?.map(\.rawValue).joined(separator: ", ") ?? "<none>"
+        log.info("draggingEntered[\(self.folderName, privacy: .public)] mouseAt=\(NSStringFromPoint(mouseInScreen), privacy: .public) panelFrame=\(NSStringFromRect(panelFrame), privacy: .public) sourceMask=\(sourceMask.rawValue, privacy: .public) types=[\(types, privacy: .public)]")
         setHighlighted(true)
         // Never accept anything but .copy. Returning .generic or .move
         // from a promise source (Photos, Mail) makes the source treat
@@ -218,70 +224,264 @@ final class DropOverlayView: NSView {
         setHighlighted(false)
 
         let pb = sender.draggingPasteboard
-        var resolved: [URL] = []
-        var tempDir: URL?
 
-        // Probe for file promises FIRST. Apps like Photos put BOTH
-        // `public.file-url` AND a file promise on the pasteboard, but
-        // the file URL points into the source's managed library bundle
-        // (e.g. `.photoslibrary/originals/...`). Reading that URL and
-        // handing it to the rename pipeline mutates the library's
-        // internal storage and corrupts the library. The promise is the
-        // source-blessed way to get a *detached copy* of the asset.
-        let promiseReceivers = pb.readObjects(forClasses: [NSFilePromiseReceiver.self], options: nil) as? [NSFilePromiseReceiver] ?? []
+        // Mail.app is handled out-of-band: its file-promise contract
+        // only fulfills against Finder, so we bypass the promise path
+        // entirely and ask Mail (via AppleScript) to write the
+        // currently-selected message(s) as .eml. See MailBridge for
+        // the full rationale.
+        if MailBridge.isMailDrag(pb) {
+            return performMailDrop()
+        }
 
-        // Plain file URLs are only safe to consume when no promise is
-        // on offer (the Finder→Finder case where the URL is the real
-        // user-visible file on disk).
-        if promiseReceivers.isEmpty {
+        // Check for promises FIRST. Apps like Photos put both
+        // `public.file-url` AND a promise on the pasteboard — but the
+        // file URL points into the source's managed library bundle
+        // (e.g. `.photoslibrary/originals/...`). Reading those URLs and
+        // handing them to the rename pipeline would mutate the
+        // library's internal storage and corrupt the library. The
+        // promise is the source-blessed way to get a *copy* out.
+        //
+        // Legacy file promises (`Apple files promise pasteboard type` /
+        // `NSPromiseContentsPboardType`). Mail.app advertises BOTH the
+        // modern (NSFilePromiseProvider) and legacy promise types but
+        // only actually fulfills the legacy one — the modern receiver
+        // cancels within ~10ms of any drop. So if the pasteboard
+        // carries the legacy markers, prefer that path.
+        let types = pb.types ?? []
+        let hasLegacyPromise = types.contains { t in
+            let raw = t.rawValue
+            return raw == "Apple files promise pasteboard type" || raw == "NSPromiseContentsPboardType"
+        }
+
+        // Modern promises via NSFilePromiseReceiver. Used as a
+        // fallback when no legacy promise was offered (Safari,
+        // Photos, etc. that DO honour the modern path).
+        var promiseReceivers: [NSFilePromiseReceiver] = []
+        sender.enumerateDraggingItems(
+            options: [],
+            for: self,
+            classes: [NSFilePromiseReceiver.self],
+            searchOptions: [:]
+        ) { item, _, _ in
+            if let receiver = item.item as? NSFilePromiseReceiver {
+                promiseReceivers.append(receiver)
+            }
+        }
+
+        // No promises at all → safe to consume `public.file-url`s
+        // directly (this is the Finder→Finder case where the URL is
+        // the actual user-visible file on disk).
+        if !hasLegacyPromise && promiseReceivers.isEmpty {
+            var fileURLs: [URL] = []
             if let urls = pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] {
-                resolved.append(contentsOf: urls)
+                fileURLs.append(contentsOf: urls)
             }
+            log.info("dropOverlay[\(self.folderName, privacy: .public)]: drop resolved \(fileURLs.count, privacy: .public) file URL(s)")
+            if !fileURLs.isEmpty { onDrop?(fileURLs, nil) }
+            return !fileURLs.isEmpty
         }
 
-        // Promised files (Mail, Safari, …). The receiver hands back an
-        // NSFilePromiseReceiver per item; each materializes its file
-        // into a temp dir on demand. Lives under NSTemporaryDirectory
-        // (`/var/folders/.../T/`), not the project — cleanup runs in
-        // the coordinator after the rename pipeline moves the files out.
-        if !promiseReceivers.isEmpty {
-            let dir = FileManager.default.temporaryDirectory
-                .appendingPathComponent("finder-toolbox-drop-\(UUID().uuidString)")
+        // Promise present → IGNORE any plain file URLs on the pasteboard.
+        // They are the source app's internal originals, not safe to touch.
+        let fileURLs: [URL] = []
+
+        // Promise targets land in a staging dir under
+        // ~/Library/Caches/<bundle>/drops/. We avoid NSTemporaryDirectory
+        // because sandboxed source apps (e.g. Mail's XPC service) can't
+        // get a write extension to that path. See `makeStagingDir`.
+        guard let dir = makeStagingDir() else { return false }
+
+        if hasLegacyPromise {
+            return performLegacyPromiseDrop(sender: sender, dir: dir, fileURLs: fileURLs)
+        }
+        return performModernPromiseDrop(receivers: promiseReceivers, dir: dir, fileURLs: fileURLs)
+    }
+
+    /// Mail.app path: AppleScript-driven, see `MailBridge`. Always
+    /// returns `true` synchronously and resolves the actual file(s) on
+    /// a background queue so the drag finalize doesn't block on the
+    /// AppleEvent round-trip with Mail.
+    private func performMailDrop() -> Bool {
+        guard let dir = makeStagingDir() else { return false }
+
+        let folderName = self.folderName
+        let log = self.log
+        let onDrop = self.onDrop
+
+        DispatchQueue.global(qos: .userInitiated).async {
             do {
-                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-                tempDir = dir
+                let urls = try MailBridge.saveSelectedMessages(to: dir)
+                DispatchQueue.main.async {
+                    log.info("dropOverlay[\(folderName, privacy: .public)]: Mail bridge resolved \(urls.count, privacy: .public) message(s)")
+                    if urls.isEmpty {
+                        try? FileManager.default.removeItem(at: dir)
+                        return
+                    }
+                    onDrop?(urls, dir)
+                }
             } catch {
-                log.error("dropOverlay: failed to create temp dir: \(error.localizedDescription, privacy: .public)")
+                log.error("dropOverlay[\(folderName, privacy: .public)]: Mail bridge failed: \(error.localizedDescription, privacy: .public)")
+                DispatchQueue.main.async {
+                    try? FileManager.default.removeItem(at: dir)
+                }
+            }
+        }
+        return true
+    }
+
+    /// Creates a unique staging directory under
+    /// `~/Library/Caches/<bundle>/drops/`. See the rationale in
+    /// `performDragOperation` for why this location is preferred over
+    /// `NSTemporaryDirectory()`.
+    private func makeStagingDir() -> URL? {
+        let cachesRoot = (try? FileManager.default.url(for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true))
+            ?? FileManager.default.temporaryDirectory
+        let bundleID = Bundle.main.bundleIdentifier ?? "danielammann.Finder-Toolbox"
+        let dir = cachesRoot
+            .appendingPathComponent(bundleID, isDirectory: true)
+            .appendingPathComponent("drops", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            return dir
+        } catch {
+            log.error("dropOverlay: failed to create staging dir: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    /// Legacy promise path: `namesOfPromisedFilesDropped(atDestination:)`
+    /// returns the filenames the source app will write into `dir`. The
+    /// source then writes them asynchronously (after we return from
+    /// performDragOperation) and does NOT signal completion — the
+    /// deprecated API has no callback. We poll the directory for the
+    /// expected names, with a settle delay so we don't race a partially-
+    /// written file. Used by Mail.app.
+    private func performLegacyPromiseDrop(sender: NSDraggingInfo, dir: URL, fileURLs: [URL]) -> Bool {
+        guard let names = sender.namesOfPromisedFilesDropped(atDestination: dir), !names.isEmpty else {
+            log.error("dropOverlay[\(self.folderName, privacy: .public)]: legacy promise but no names returned")
+            try? FileManager.default.removeItem(at: dir)
+            return false
+        }
+        log.info("dropOverlay[\(self.folderName, privacy: .public)]: legacy promise expecting \(names.count, privacy: .public) file(s): \(names.joined(separator: ", "), privacy: .public)")
+
+        let expected = names.map { dir.appendingPathComponent($0) }
+        let folderName = self.folderName
+        let log = self.log
+        let onDrop = self.onDrop
+
+        // Poll off main so we don't block the drag finalize. Mail writes
+        // .eml files in well under a second on a typical machine.
+        DispatchQueue.global(qos: .userInitiated).async {
+            let deadline = Date().addingTimeInterval(30)
+            var lastSizes: [Int64] = Array(repeating: -1, count: expected.count)
+            var stableTicks = 0
+            while Date() < deadline {
+                let sizes: [Int64] = expected.map { url in
+                    (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? -1
+                }
+                let allPresent = sizes.allSatisfy { $0 >= 0 }
+                if allPresent && sizes == lastSizes && sizes.allSatisfy({ $0 > 0 }) {
+                    stableTicks += 1
+                    if stableTicks >= 3 { break } // ~150ms stable
+                } else {
+                    stableTicks = 0
+                }
+                lastSizes = sizes
+                Thread.sleep(forTimeInterval: 0.05)
             }
 
-            if let dir = tempDir {
-                let group = DispatchGroup()
-                var promisedURLs: [URL] = []
-                let lock = NSLock()
-                for receiver in promiseReceivers {
-                    group.enter()
-                    receiver.receivePromisedFiles(atDestination: dir, options: [:], operationQueue: promiseQueue) { url, error in
-                        if let error {
-                            self.log.error("dropOverlay: promise receive failed: \(error.localizedDescription, privacy: .public)")
-                        } else {
-                            lock.lock()
-                            promisedURLs.append(url)
-                            lock.unlock()
-                        }
-                        group.leave()
-                    }
+            let resolved = expected.filter { FileManager.default.fileExists(atPath: $0.path) }
+            DispatchQueue.main.async {
+                var all = fileURLs
+                all.append(contentsOf: resolved)
+                log.info("dropOverlay[\(folderName, privacy: .public)]: legacy promise resolved \(resolved.count, privacy: .public)/\(expected.count, privacy: .public) file(s)")
+                if all.isEmpty {
+                    try? FileManager.default.removeItem(at: dir)
+                    return
                 }
-                // Wait off the main thread, then dispatch back. The pasteboard
-                // server is hung on us returning from performDragOperation, but
-                // promise fulfillment runs on the promiseQueue, not main —
-                // ok to block briefly.
-                group.wait()
-                resolved.append(contentsOf: promisedURLs)
+                onDrop?(all, dir)
+            }
+        }
+        return true
+    }
+
+    /// Modern promise path: NSFilePromiseReceiver fulfills via XPC. Works
+    /// for Safari, Photos, Notes, anything using NSFilePromiseProvider.
+    /// Mail.app explicitly does NOT fulfill this path even though it
+    /// advertises the types — we intercept its drops via the legacy path
+    /// above before reaching here.
+    private func performModernPromiseDrop(receivers: [NSFilePromiseReceiver], dir: URL, fileURLs: [URL]) -> Bool {
+        let queue = OperationQueue()
+        queue.qualityOfService = .userInitiated
+
+        let group = DispatchGroup()
+        let urlsBox = PromiseURLBox()
+        for receiver in receivers {
+            group.enter()
+            receiver.receivePromisedFiles(atDestination: dir, options: [:], operationQueue: queue) { [log, urlsBox] url, error in
+                if let error {
+                    log.error("dropOverlay: promise receive failed: \(error.localizedDescription, privacy: .public)")
+                } else {
+                    urlsBox.append(url)
+                }
+                group.leave()
             }
         }
 
-        log.info("dropOverlay[\(self.folderName, privacy: .public)]: drop resolved \(resolved.count, privacy: .public) file(s): \(resolved.map(\.lastPathComponent).joined(separator: ", "), privacy: .public)")
-        onDrop?(resolved, tempDir)
-        return !resolved.isEmpty
+        let folderName = self.folderName
+        let log = self.log
+        let onDrop = self.onDrop
+        group.notify(queue: .main) { [urlsBox] in
+            var all = fileURLs
+            all.append(contentsOf: urlsBox.urls)
+            log.info("dropOverlay[\(folderName, privacy: .public)]: modern promise resolved \(all.count, privacy: .public) file(s)")
+            if all.isEmpty {
+                try? FileManager.default.removeItem(at: dir)
+                return
+            }
+            onDrop?(all, dir)
+        }
+        return true
+    }
+}
+
+/// Reference-typed accumulator for promise-fulfillment URLs. The promise
+/// completion callbacks fire on a background operation queue; using a
+/// class lets all callbacks (and the final notify block on main) share
+/// the same storage without value-type copy semantics tripping us up.
+private final class PromiseURLBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _urls: [URL] = []
+
+    func append(_ url: URL) {
+        lock.lock()
+        _urls.append(url)
+        lock.unlock()
+    }
+
+    var urls: [URL] {
+        lock.lock()
+        defer { lock.unlock() }
+        return _urls
+    }
+}
+
+/// Lock-protected bool flag. Used to signal promise-fulfillment
+/// completion from a background queue back to the main-thread runloop
+/// spin loop.
+private final class AtomicBool: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+
+    func get() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        return value
+    }
+
+    func set(_ newValue: Bool) {
+        lock.lock(); defer { lock.unlock() }
+        value = newValue
     }
 }
