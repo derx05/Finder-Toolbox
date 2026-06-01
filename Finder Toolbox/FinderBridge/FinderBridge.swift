@@ -161,6 +161,49 @@ actor FinderBridge {
         return outcomes
     }
 
+    /// Send `urls` to the Trash via Finder so the operation lands in
+    /// Finder's native undo stack (a manual Cmd-Z in Finder restores
+    /// them). Each URL produces one `RenameOutcome`: `.renamed(from: url,
+    /// to: url)` on success — there's no destination URL to report,
+    /// callers only care whether the trash succeeded.
+    func trashItems(_ urls: [URL]) -> [RenameOutcome] {
+        guard !urls.isEmpty else { return [] }
+        if let outcomes = tryBatchTrash(urls) {
+            return outcomes
+        }
+        return urls.map { url in
+            do {
+                try trashSingle(url)
+                return .renamed(from: url, to: url)
+            } catch {
+                return .failed(url, error: friendlyError(error))
+            }
+        }
+    }
+
+    private func tryBatchTrash(_ urls: [URL]) -> [RenameOutcome]? {
+        var lines = ["tell application \"Finder\""]
+        for url in urls {
+            lines.append("  delete (POSIX file \(asString(url.path)))")
+        }
+        lines.append("end tell")
+        do {
+            try runScript(lines.joined(separator: "\n"))
+            return urls.map { .renamed(from: $0, to: $0) }
+        } catch {
+            return nil
+        }
+    }
+
+    private func trashSingle(_ url: URL) throws {
+        let script = """
+            tell application "Finder"
+                delete (POSIX file \(asString(url.path)))
+            end tell
+        """
+        try runScript(script)
+    }
+
     private func copyAndRenameViaFinder(_ items: [(source: URL, targetFolder: URL, newName: String)]) -> [RenameOutcome] {
         if let outcomes = tryBatchCopyAndRename(items) {
             return outcomes

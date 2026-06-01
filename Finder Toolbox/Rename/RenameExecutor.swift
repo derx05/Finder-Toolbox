@@ -101,14 +101,24 @@ actor RenameExecutor {
     /// dialog mid-drag would be jarring — the drop UI is supposed to be
     /// a fast alternative path, not a modal one. A future enhancement
     /// could surface decisions in the end-of-drop summary instead.
+    /// Result of `executeDrop`: the user-facing summary plus the action
+    /// list undo needs to reverse the operation. Undo for drops can't be
+    /// expressed as a flat list of renames: a moved file has to go back
+    /// to its original folder, a copy has to be trashed, and only
+    /// in-place renames are reversed by renaming alone.
+    struct DropResult: Sendable {
+        let summary: BatchSummary
+        let undoActions: [BatchAction]
+    }
+
     func executeDrop(
         urls: [URL],
         into targetFolder: URL,
         operation: DropOperation,
         folderMode: FolderMode,
         renameFolders: FolderRenameScope
-    ) async -> BatchSummary {
-        guard !urls.isEmpty else { return BatchSummary(outcomes: []) }
+    ) async -> DropResult {
+        guard !urls.isEmpty else { return DropResult(summary: BatchSummary(outcomes: []), undoActions: []) }
 
         // For .move, items whose source parent already equals the target
         // folder are routed to a rename-only path. Finder's `move … to
@@ -116,10 +126,17 @@ actor RenameExecutor {
         // worst — on SMB volumes — fails outright with "operation can't
         // be completed". For .copy we always go through the cross-folder
         // path (a same-folder copy still has to duplicate the file).
-        var sameFolderRenames: [(from: URL, to: String)] = []
-        var crossFolderItems: [(source: URL, targetFolder: URL, newName: String)] = []
+        var sameFolderRenames: [(from: URL, to: String, originalName: String)] = []
+        struct CrossItem {
+            let source: URL
+            let targetFolder: URL
+            let newName: String
+            let isDir: Bool
+        }
+        var crossFolderItems: [CrossItem] = []
         var claimedInTarget: Set<String> = []
         var outcomes: [RenameOutcome] = []
+        var undoActions: [BatchAction] = []
         var droppedPdfDecisions: [PdfPendingDecision] = []
 
         // Folders whose descendants need renaming after the top-level
@@ -159,9 +176,12 @@ actor RenameExecutor {
 
             claimedInTarget.insert(resolved)
             if operation == .move, inSameFolder {
-                sameFolderRenames.append((from: url, to: resolved))
+                sameFolderRenames.append((from: url, to: resolved, originalName: url.lastPathComponent))
             } else {
-                crossFolderItems.append((source: url, targetFolder: targetFolder, newName: resolved))
+                crossFolderItems.append(CrossItem(
+                    source: url, targetFolder: targetFolder,
+                    newName: resolved, isDir: isDir
+                ))
             }
 
             if isDir, folderMode == .recursive {
@@ -172,14 +192,39 @@ actor RenameExecutor {
         }
 
         if !sameFolderRenames.isEmpty {
-            outcomes.append(contentsOf: await bridge.batchRename(sameFolderRenames))
+            let inputs = sameFolderRenames.map { (from: $0.from, to: $0.to) }
+            let results = await bridge.batchRename(inputs)
+            outcomes.append(contentsOf: results)
+            // Reverse-engineer which entries succeeded so the undo list
+            // doesn't try to roll back a failed rename.
+            for (input, result) in zip(sameFolderRenames, results) {
+                if case .renamed(_, let to) = result {
+                    undoActions.append(.rename(at: to, restoreName: input.originalName))
+                }
+            }
         }
         if !crossFolderItems.isEmpty {
+            let inputs = crossFolderItems.map { (source: $0.source, targetFolder: $0.targetFolder, newName: $0.newName) }
+            let results: [RenameOutcome]
             switch operation {
             case .move:
-                outcomes.append(contentsOf: await bridge.moveAndRename(crossFolderItems))
+                results = await bridge.moveAndRename(inputs)
             case .copy:
-                outcomes.append(contentsOf: await bridge.copyAndRename(crossFolderItems))
+                results = await bridge.copyAndRename(inputs)
+            }
+            outcomes.append(contentsOf: results)
+            for (item, result) in zip(crossFolderItems, results) {
+                guard case .renamed(_, let destURL) = result else { continue }
+                switch operation {
+                case .move:
+                    undoActions.append(.move(
+                        currentURL: destURL,
+                        originalParent: item.source.deletingLastPathComponent(),
+                        originalName: item.source.lastPathComponent
+                    ))
+                case .copy:
+                    undoActions.append(.copy(copyURL: destURL))
+                }
             }
         }
 
@@ -188,6 +233,11 @@ actor RenameExecutor {
         // "already canonical" (the folder was just renamed by the
         // move/copy above) or excluded entirely under `.filesOnly`, so
         // re-planning here doesn't double-rename the folder.
+        //
+        // Descendant renames are recorded for undo only on `.move` — on
+        // `.copy` the whole copied folder will be trashed by the
+        // top-level `.copy` undo action, so individual descendant
+        // renames inside it don't need to be (and shouldn't be) reversed.
         for newFolderURL in recursiveFolderDestinations {
             guard FileManager.default.fileExists(atPath: newFolderURL.path) else { continue }
             let recursivePlan = buildPlan(
@@ -196,22 +246,64 @@ actor RenameExecutor {
                 renameFolders: renameFolders
             )
             if recursivePlan.isEmpty { continue }
+            // Pre-execution map from each planned source URL to its
+            // original leaf name. `execute()` returns outcomes whose
+            // `from` is the source URL (pre-rename), so we can join.
+            let originalNameByURL: [URL: String] = Dictionary(
+                uniqueKeysWithValues: recursivePlan.renames.map { ($0.originalURL, $0.originalURL.lastPathComponent) }
+            )
             let subSummary = await execute(plan: recursivePlan)
             outcomes.append(contentsOf: subSummary.outcomes)
+            if operation == .move {
+                for outcome in subSummary.outcomes {
+                    if case .renamed(let from, let to) = outcome,
+                       let originalName = originalNameByURL[from] {
+                        undoActions.append(.rename(at: to, restoreName: originalName))
+                    }
+                }
+            }
         }
 
-        return BatchSummary(outcomes: outcomes)
+        return DropResult(
+            summary: BatchSummary(outcomes: outcomes),
+            undoActions: undoActions
+        )
     }
 
-    func reverseRename(_ records: [RenameRecord]) async -> BatchSummary {
-        // Same deepest-first order as the forward batch: each record's
-        // `renamedURL` is the final post-batch path, so renaming descendants
-        // first leaves ancestor paths valid until their turn comes.
-        let sorted = records.sorted { lhs, rhs in
-            lhs.renamedURL.pathComponents.count > rhs.renamedURL.pathComponents.count
+    /// Reverse the most recent batch. Renames are reversed first so a
+    /// move-back of an ancestor folder finds the descendant names already
+    /// restored; moves come next; trashing copies last (independent).
+    /// Each phase is sorted deepest-first so a child rename or move-back
+    /// never finds its parent path stale.
+    func reverseLastBatch(_ actions: [BatchAction]) async -> BatchSummary {
+        var outcomes: [RenameOutcome] = []
+
+        var renameInputs: [(from: URL, to: String)] = []
+        var moveInputs: [(source: URL, targetFolder: URL, newName: String)] = []
+        var trashInputs: [URL] = []
+        for action in actions {
+            switch action {
+            case .rename(let at, let restoreName):
+                renameInputs.append((from: at, to: restoreName))
+            case .move(let currentURL, let originalParent, let originalName):
+                moveInputs.append((source: currentURL, targetFolder: originalParent, newName: originalName))
+            case .copy(let copyURL):
+                trashInputs.append(copyURL)
+            }
         }
-        let renames = sorted.map { (from: $0.renamedURL, to: $0.originalName) }
-        let outcomes = await bridge.batchRename(renames)
+
+        renameInputs.sort { $0.from.pathComponents.count > $1.from.pathComponents.count }
+        moveInputs.sort { $0.source.pathComponents.count > $1.source.pathComponents.count }
+
+        if !renameInputs.isEmpty {
+            outcomes.append(contentsOf: await bridge.batchRename(renameInputs))
+        }
+        if !moveInputs.isEmpty {
+            outcomes.append(contentsOf: await bridge.moveAndRename(moveInputs))
+        }
+        if !trashInputs.isEmpty {
+            outcomes.append(contentsOf: await bridge.trashItems(trashInputs))
+        }
         return BatchSummary(outcomes: outcomes)
     }
 

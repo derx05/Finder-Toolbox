@@ -19,7 +19,7 @@ final class AppController: ObservableObject {
     var openSettingsAction: (() -> Void)?
 
     @Published private(set) var isRenaming = false
-    @Published private(set) var lastBatch: [RenameRecord] = []
+    @Published private(set) var lastBatch: [BatchAction] = []
 
     private let executor = RenameExecutor()
     private var progressController: ProgressWindowController?
@@ -244,7 +244,7 @@ final class AppController: ObservableObject {
 
         lastBatch = summary.outcomes.compactMap { outcome in
             if case .renamed(let from, let to) = outcome {
-                return RenameRecord(renamedURL: to, originalName: from.lastPathComponent)
+                return BatchAction.rename(at: to, restoreName: from.lastPathComponent)
             }
             return nil
         }
@@ -319,13 +319,14 @@ final class AppController: ObservableObject {
             }
         }
 
-        let summary = await executor.executeDrop(
+        let dropResult = await executor.executeDrop(
             urls: urls,
             into: targetFolder,
             operation: operation,
             folderMode: resolvedFolderMode,
             renameFolders: resolvedRenameScope
         )
+        let summary = dropResult.summary
 
         if PermissionsManager.shared.finderAutomationStatus == .denied {
             SummaryDialog.showPermissionDenied()
@@ -347,12 +348,7 @@ final class AppController: ObservableObject {
             return
         }
 
-        lastBatch = summary.outcomes.compactMap { outcome in
-            if case .renamed(let from, let to) = outcome {
-                return RenameRecord(renamedURL: to, originalName: from.lastPathComponent)
-            }
-            return nil
-        }
+        lastBatch = dropResult.undoActions
 
         SummaryDialog.showIfNeeded(summary)
     }
@@ -365,9 +361,9 @@ final class AppController: ObservableObject {
         isRenaming = true
         defer { isRenaming = false }
 
-        let records = lastBatch
+        let actions = lastBatch
         lastBatch = []
-        let summary = await executor.reverseRename(records)
+        let summary = await executor.reverseLastBatch(actions)
         SummaryDialog.showIfNeeded(summary)
     }
 

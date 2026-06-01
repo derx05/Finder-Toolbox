@@ -148,6 +148,22 @@ struct RenameRecord: Sendable {
     let originalName: String // filename to restore on undo
 }
 
+/// One reversible step from the most recent batch. The hotkey rename only
+/// produces `.rename` entries; drop-target operations also produce `.move`
+/// or `.copy` so undo can put files back where they came from (or trash a
+/// copy) instead of just renaming them in place at the destination.
+enum BatchAction: Sendable {
+    /// Rename the item currently at `at` back to `restoreName`.
+    case rename(at: URL, restoreName: String)
+    /// Move the item currently at `currentURL` back to `originalParent`
+    /// and restore `originalName`.
+    case move(currentURL: URL, originalParent: URL, originalName: String)
+    /// Send the copy at `copyURL` to the trash. Recursive descendant
+    /// renames inside a copied folder are *not* recorded — trashing the
+    /// folder discards them along with the copy.
+    case copy(copyURL: URL)
+}
+
 enum RenameOutcome: Sendable {
     case renamed(from: URL, to: URL)
     case skipped(URL, reason: SkipReason)
