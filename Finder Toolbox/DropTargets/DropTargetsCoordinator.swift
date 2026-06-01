@@ -27,6 +27,15 @@ final class DropTargetsCoordinator {
     private var modifierMonitorGlobal: Any?
     private var modifierMonitorLocal: Any?
 
+    /// True between drag-start and drag-end. Drives the Space-change
+    /// rebuild and the hover-gating monitor; both are no-ops outside a drag.
+    private var dragActive: Bool = false
+
+    /// Hover-gating monitors. Re-evaluate panel visibility on every cursor
+    /// move while a drag is active.
+    private var hoverMonitorGlobal: Any?
+    private var hoverMonitorLocal: Any?
+
     /// Long-lived map of Finder window IDs to their target folder + name.
     /// AppleEvents to Finder cost ~1–3s on a cold call, but the data is
     /// stable across Space switches (window IDs don't change when you
@@ -63,8 +72,10 @@ final class DropTargetsCoordinator {
             queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                self?.log.debug("active Space changed — refreshing folder map")
-                self?.refreshFolderMap()
+                guard let self else { return }
+                self.log.debug("active Space changed — refreshing folder map")
+                self.refreshFolderMap()
+                if self.dragActive { self.rebuildPanelsForCurrentSpace() }
             }
         }
 
@@ -130,10 +141,15 @@ final class DropTargetsCoordinator {
         showPanels(for: windows)
         refreshAllPanelOperations()
         startModifierMonitor()
+        dragActive = true
+        startHoverMonitorIfNeeded()
+        applyHoverGating()
     }
 
     private func handleDragEnded() {
+        dragActive = false
         stopModifierMonitor()
+        stopHoverMonitor()
         hidePanels()
         dragSourceURLs = []
         dragPromiseOnly = false
@@ -193,6 +209,81 @@ final class DropTargetsCoordinator {
         if let modifierMonitorLocal { NSEvent.removeMonitor(modifierMonitorLocal) }
         modifierMonitorGlobal = nil
         modifierMonitorLocal = nil
+    }
+
+    /// Re-snapshot the current Space's Finder windows and rebuild overlay
+    /// panels mid-drag. Deferred one runloop tick because
+    /// `activeSpaceDidChangeNotification` can fire fractionally before
+    /// `CGWindowListCopyWindowInfo` reports the new Space's visible set.
+    private func rebuildPanelsForCurrentSpace() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.dragActive else { return }
+            let cgWindows = FinderWindowSnapshot.currentVisibleFinderWindows()
+            let windows: [FinderWindow] = cgWindows.compactMap { entry in
+                guard let (folder, title) = self.folderByID[entry.id] else { return nil }
+                return FinderWindow(
+                    windowID: entry.id,
+                    screenRect: entry.rect,
+                    targetFolder: folder,
+                    title: title
+                )
+            }
+            self.log.debug("Space change mid-drag — rebuilding \(windows.count, privacy: .public) panel(s)")
+            self.showPanels(for: windows)
+            self.refreshAllPanelOperations()
+            self.applyHoverGating()
+        }
+    }
+
+    // MARK: - Hover gating
+
+    private var hoverGatingEnabled: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKeys.dropTargetsHoverGated)
+    }
+
+    private func startHoverMonitorIfNeeded() {
+        guard hoverGatingEnabled, hoverMonitorGlobal == nil else { return }
+        // `.leftMouseDragged` is what we get during a drag — `.mouseMoved`
+        // is suppressed by the system while a drag is in flight. Frequency
+        // is ~60 Hz; refreshing per panel visibility is cheap.
+        hoverMonitorGlobal = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDragged) { [weak self] _ in
+            MainActor.assumeIsolated { self?.applyHoverGating() }
+        }
+        hoverMonitorLocal = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDragged) { [weak self] event in
+            MainActor.assumeIsolated { self?.applyHoverGating() }
+            return event
+        }
+    }
+
+    private func stopHoverMonitor() {
+        if let hoverMonitorGlobal { NSEvent.removeMonitor(hoverMonitorGlobal) }
+        if let hoverMonitorLocal { NSEvent.removeMonitor(hoverMonitorLocal) }
+        hoverMonitorGlobal = nil
+        hoverMonitorLocal = nil
+    }
+
+    /// When hover-gating is off, every panel should be visible (default
+    /// behavior). When on, a panel is visible only if the cursor lies
+    /// inside its Finder window AND the topmost non-overlay window at the
+    /// cursor is that same Finder window (i.e. nothing's covering it).
+    private func applyHoverGating() {
+        guard hoverGatingEnabled else {
+            for panel in panels where !panel.isVisible { panel.orderFrontRegardless() }
+            return
+        }
+        let cursor = NSEvent.mouseLocation
+        let ownIDs = Set(panels.map { CGWindowID($0.windowNumber) })
+        let top = FinderWindowSnapshot.topmostWindow(at: cursor, excluding: ownIDs)
+        for panel in panels {
+            let insideWindow = panel.target.screenRect.contains(cursor)
+            let isTopFinder = (top?.owner == "Finder") && (top?.id == panel.target.windowID)
+            let shouldShow = insideWindow && isTopFinder
+            if shouldShow {
+                if !panel.isVisible { panel.orderFrontRegardless() }
+            } else {
+                if panel.isVisible { panel.orderOut(nil) }
+            }
+        }
     }
 
     private func refreshFolderMap() {

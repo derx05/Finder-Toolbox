@@ -105,6 +105,36 @@ actor FinderWindowSnapshot {
         return entries
     }
 
+    /// Topmost layer-0 window at the given Cocoa-coordinate point, skipping
+    /// our own overlay panels (passed in `excluding`). Used by the hover-
+    /// gating feature to decide whether a Finder window is reachable under
+    /// the cursor — if the answer's owner isn't `Finder` or its window ID
+    /// doesn't match, the Finder window is occluded at the cursor and its
+    /// overlay should stay hidden.
+    nonisolated static func topmostWindow(
+        at point: NSPoint,
+        excluding ownPanelIDs: Set<CGWindowID>
+    ) -> (id: CGWindowID, owner: String)? {
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let infos = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return nil
+        }
+        for info in infos {
+            guard let layer = info[kCGWindowLayer as String] as? Int, layer == 0 else { continue }
+            guard let id = info[kCGWindowNumber as String] as? CGWindowID,
+                  !ownPanelIDs.contains(id) else { continue }
+            if let alpha = info[kCGWindowAlpha as String] as? Double, alpha == 0 { continue }
+            guard let bd = info[kCGWindowBounds as String] as? [String: Any],
+                  let bounds = CGRect(dictionaryRepresentation: bd as CFDictionary) else { continue }
+            let rect = cocoaFrame(fromCGBounds: bounds)
+            if rect.contains(point) {
+                let owner = info[kCGWindowOwnerName as String] as? String ?? ""
+                return (id, owner)
+            }
+        }
+        return nil
+    }
+
     /// Mirrors `DropOverlayPanel.overlayFrame(for:)` for the bottom-right
     /// anchor (without the screen clamp — occlusion is a window-space
     /// concern). Kept here rather than importing the panel type so this

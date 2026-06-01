@@ -10,6 +10,7 @@ import SwiftUI
 /// lands in Finder's native undo stack).
 struct DropTargetsSettingsPage: View {
     @AppStorage(DefaultsKeys.dropTargetsEnabled) private var enabled = false
+    @AppStorage(DefaultsKeys.dropTargetsHoverGated) private var hoverGated = false
     @StateObject private var permissions = PermissionsManager.shared
 
     var body: some View {
@@ -19,6 +20,15 @@ struct DropTargetsSettingsPage: View {
                     .toggleStyle(.switch)
 
                 Text("When a file drag begins anywhere on the system, a small overlay appears in the bottom-right corner of each visible Finder window. Drop a file on an overlay to rename it with the smart-date pipeline and move it into that window's folder, in one step.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Toggle("Only show the overlay for the Finder window under the cursor", isOn: $hoverGated)
+                    .toggleStyle(.switch)
+                    .disabled(!enabled)
+
+                Text("Cuts visual noise when several Finder windows are open. The overlay for a given window only appears while the cursor is over that window and the window isn't covered by another at the cursor.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
