@@ -68,6 +68,62 @@ actor RenameExecutor {
         return BatchSummary(outcomes: outcomes)
     }
 
+    /// Drop-target entry point: take arbitrary file URLs (already
+    /// materialized from any promises) and the destination folder,
+    /// compute canonical filenames using the same logic as the hotkey
+    /// path, resolve any name collisions against the target folder, and
+    /// hand off to Finder via `moveAndRename` so the result lands in
+    /// Finder's undo stack.
+    ///
+    /// PDF ambiguities are accepted silently using the working defaults
+    /// (heuristic over metadata, metadata over today). Surfacing the
+    /// dialog mid-drag would be jarring — the drop UI is supposed to be
+    /// a fast alternative path, not a modal one. A future enhancement
+    /// could surface decisions in the end-of-drop summary instead.
+    func executeDrop(urls: [URL], into targetFolder: URL) async -> BatchSummary {
+        guard !urls.isEmpty else { return BatchSummary(outcomes: []) }
+
+        // Items whose source parent already equals the target folder are
+        // routed to a rename-only path. Finder's `move … to folder …`
+        // verb to the same folder is at best a no-op and at worst — on
+        // SMB volumes — fails outright with "operation can't be completed".
+        var sameFolderRenames: [(from: URL, to: String)] = []
+        var crossFolderItems: [(source: URL, targetFolder: URL, newName: String)] = []
+        var claimedInTarget: Set<String> = []
+        var outcomes: [RenameOutcome] = []
+        var droppedPdfDecisions: [PdfPendingDecision] = []
+
+        for url in urls {
+            let desiredName = canonicalName(for: url, pdfDecisions: &droppedPdfDecisions)
+            let resolved = resolveConflict(
+                target: desiredName,
+                in: targetFolder,
+                claimedNames: claimedInTarget
+            )
+
+            let inSameFolder = url.deletingLastPathComponent().path == targetFolder.path
+            if inSameFolder, url.lastPathComponent == resolved {
+                outcomes.append(.skipped(url, reason: .alreadyCanonical))
+                continue
+            }
+
+            claimedInTarget.insert(resolved)
+            if inSameFolder {
+                sameFolderRenames.append((from: url, to: resolved))
+            } else {
+                crossFolderItems.append((source: url, targetFolder: targetFolder, newName: resolved))
+            }
+        }
+
+        if !sameFolderRenames.isEmpty {
+            outcomes.append(contentsOf: await bridge.batchRename(sameFolderRenames))
+        }
+        if !crossFolderItems.isEmpty {
+            outcomes.append(contentsOf: await bridge.moveAndRename(crossFolderItems))
+        }
+        return BatchSummary(outcomes: outcomes)
+    }
+
     func reverseRename(_ records: [RenameRecord]) async -> BatchSummary {
         // Same deepest-first order as the forward batch: each record's
         // `renamedURL` is the final post-batch path, so renaming descendants

@@ -13,7 +13,11 @@ nonisolated enum DefaultsKeys {
     static let dockMode             = "app.dockMode"
     static let menuBarShowIcon      = "menuBar.showIcon"
 
-    // Hotkey
+    // Hotkey. `hotkeyEnabled` is the master switch: when false, neither
+    // primary nor secondary hotkey is registered. Users who only want
+    // the drag-time drop targets can disable the hotkey for efficiency
+    // and to avoid claiming a global shortcut.
+    static let hotkeyEnabled        = "hk.enabled"
     static let hotkeyKeyCode        = "hk.keyCode"
     static let hotkeyModifiers      = "hk.modifiers"
 
@@ -57,6 +61,9 @@ nonisolated enum DefaultsKeys {
     static let recursiveWarnEnabled     = "folders.recursiveWarnEnabled"
     static let recursiveWarnThreshold   = "folders.recursiveWarnThreshold"
 
+    // Drag-time drop targets (issue #29). Off by default — opt-in via Settings.
+    static let dropTargetsEnabled       = "dropTargets.enabled"
+
     // Updates. `updatesChannel` raw values come from `UpdateChannel.rawValue`;
     // `updatesAutoCheck` / `updatesAutoDownload` mirror Sparkle's
     // `automaticallyChecksForUpdates` / `automaticallyDownloadsUpdates` so the
@@ -76,6 +83,7 @@ nonisolated enum DefaultsKeys {
     /// of what the Settings UI displays as the default.
     nonisolated static func registerInitialDefaults() {
         UserDefaults.standard.register(defaults: [
+            hotkeyEnabled:              true,
             emlUseDateHeader:           true,
             dateFormatStyle:            "system", // DateFormatStyle.default
             datePriority:               "content", // DatePriority.default

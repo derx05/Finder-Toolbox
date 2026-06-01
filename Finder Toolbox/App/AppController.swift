@@ -51,6 +51,22 @@ final class AppController: ObservableObject {
             Task { @MainActor in await self?.performRename(forcedFolderMode: .recursive) }
         }
         HotkeyManager.shared.setup()
+
+        // Issue #29 drag-time drop targets. Off by default — gated by
+        // the `dropTargets.enabled` user default, settable on the
+        // dedicated Settings page. Observe defaults so toggling the
+        // switch in Settings starts/stops the coordinator live without
+        // requiring a restart.
+        DropTargetsCoordinator.shared.refreshFromDefaults()
+        NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            MainActor.assumeIsolated {
+                DropTargetsCoordinator.shared.refreshFromDefaults()
+            }
+        }
     }
 
     #if DEBUG
@@ -191,6 +207,60 @@ final class AppController: ObservableObject {
 
         if PermissionsManager.shared.finderAutomationStatus == .denied {
             SummaryDialog.showPermissionDenied()
+            return
+        }
+
+        lastBatch = summary.outcomes.compactMap { outcome in
+            if case .renamed(let from, let to) = outcome {
+                return RenameRecord(renamedURL: to, originalName: from.lastPathComponent)
+            }
+            return nil
+        }
+
+        SummaryDialog.showIfNeeded(summary)
+    }
+
+    /// Drop-target entry point. Routes drag-and-drop drops onto a Finder-window
+    /// overlay through the same naming + Finder Apple Events plumbing the
+    /// hotkey path uses, just with an explicit destination folder instead
+    /// of an in-place rename.
+    func performDrop(urls: [URL], into targetFolder: URL) async {
+        guard !urls.isEmpty, !isRenaming else { return }
+        isRenaming = true
+        defer { isRenaming = false }
+
+        // Proactive TCC check: if the target folder is TCC-gated and we
+        // don't have Full Disk Access, the move via Finder Apple Events
+        // will fail after macOS shows a misleading "Finder wants to make
+        // changes" prompt (the OS attributes the request to Finder
+        // visually but checks our TCC context). Short-circuit before
+        // touching Finder so the user sees one clean dialog with a deep
+        // link instead of a confusing two-prompt loop.
+        if PermissionsManager.shared.isTCCGatedDestination(targetFolder),
+           !PermissionsManager.shared.hasFullDiskAccess() {
+            SummaryDialog.showFullDiskAccessRequired()
+            return
+        }
+
+        let summary = await executor.executeDrop(urls: urls, into: targetFolder)
+
+        if PermissionsManager.shared.finderAutomationStatus == .denied {
+            SummaryDialog.showPermissionDenied()
+            return
+        }
+
+        // Detect the FDA-on-destination denial. Surfaced via the failure
+        // message string because RenameOutcome.failed only carries a
+        // String, and the localized message starts with a sentinel
+        // produced by FinderBridgeError.destinationNotPermitted. Show the
+        // dedicated dialog (with the System Settings deep link) instead
+        // of the generic summary; if the move couldn't even reach Finder,
+        // the user needs the recovery path, not a per-file error list.
+        let fdaDenied = summary.failed.contains { _, error in
+            error.contains("Full Disk Access")
+        }
+        if fdaDenied {
+            SummaryDialog.showFullDiskAccessRequired()
             return
         }
 
