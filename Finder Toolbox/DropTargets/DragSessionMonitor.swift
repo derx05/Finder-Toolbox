@@ -25,6 +25,11 @@ final class DragSessionMonitor {
     private enum State { case idle, armed, active }
     private var state: State = .idle
     private var armedChangeCount: Int = 0
+    /// `pasteboard.changeCount` snapshotted when we entered `.active`.
+    /// A later `.leftMouseDragged` with a *different* changeCount means
+    /// a fresh drag pasteboard write happened — i.e. a new drag started
+    /// without us seeing the intervening `.leftMouseUp` + `.leftMouseDown`.
+    private var activeChangeCount: Int = 0
     private var monitor: Any?
 
     /// File-typed pasteboard markers. `.fileURL` covers Finder drags; the
@@ -74,15 +79,42 @@ final class DragSessionMonitor {
             state = .armed
 
         case .leftMouseDragged:
-            guard state == .armed else { return }
             let cc = pasteboard.changeCount
-            guard cc > armedChangeCount else { return }
-            let types = pasteboard.types ?? []
-            let isFile = !Self.fileTypes.isDisjoint(with: Set(types))
-            state = .active
-            if isFile {
-                log.debug("file drag started — frontmost=\(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?", privacy: .public)")
-                onDragStarted?()
+            switch state {
+            case .armed:
+                guard cc > armedChangeCount else { return }
+                let isFile = pasteboardHasFileTypes()
+                state = .active
+                activeChangeCount = cc
+                if isFile {
+                    log.debug("file drag started — frontmost=\(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?", privacy: .public)")
+                    onDragStarted?()
+                }
+            case .active:
+                // Already in a drag from our state machine's perspective.
+                // If the drag pasteboard's changeCount has advanced again,
+                // a new drag session began without us receiving the
+                // intervening `.leftMouseUp` + `.leftMouseDown` (global
+                // monitors occasionally drop those — the drag-back
+                // animation after a rejected drop is a common repro).
+                // Synthesize the missed end + start so the new drag still
+                // gets overlays.
+                guard cc != activeChangeCount else { return }
+                log.debug("drag pasteboard advanced mid-active — synthesizing end + restart")
+                onDragEnded?()
+                activeChangeCount = cc
+                if pasteboardHasFileTypes() {
+                    onDragStarted?()
+                }
+            case .idle:
+                // Missed the leading `.leftMouseDown`. Arm with the
+                // current changeCount as the baseline; if the drag
+                // pasteboard advances on a later dragged event, the next
+                // pass through `.armed` will fire. Can't detect the
+                // already-in-flight drag (its pasteboard write is in the
+                // past) — but at least the NEXT drag will recover cleanly.
+                armedChangeCount = cc
+                state = .armed
             }
 
         case .leftMouseUp:
@@ -94,5 +126,10 @@ final class DragSessionMonitor {
         default:
             break
         }
+    }
+
+    private func pasteboardHasFileTypes() -> Bool {
+        let types = pasteboard.types ?? []
+        return !Self.fileTypes.isDisjoint(with: Set(types))
     }
 }

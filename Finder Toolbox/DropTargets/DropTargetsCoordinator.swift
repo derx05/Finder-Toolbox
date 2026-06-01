@@ -133,17 +133,24 @@ final class DropTargetsCoordinator {
                 title: title
             )
         }
-        if windows.isEmpty && !cgWindows.isEmpty {
-            log.debug("drag started — \(cgWindows.count, privacy: .public) CG windows but no folder-map matches; first-drag-after-launch? refreshing")
-            refreshFolderMap()
-            return
-        }
+
         showPanels(for: windows)
         refreshAllPanelOperations()
         startModifierMonitor()
         dragActive = true
         startHoverMonitorIfNeeded()
         applyHoverGating()
+
+        // If any visible Finder window wasn't in the folder cache (first
+        // drag after launch, or a window opened since the last refresh),
+        // kick a background AE refresh and rebuild panels mid-drag once
+        // it lands. Without this, the drag finishes before the user sees
+        // an overlay for that window — the visible symptom of the
+        // "popups don't show up ~1 in 5 drags" bug.
+        if windows.count < cgWindows.count {
+            log.debug("drag started — \(cgWindows.count - windows.count, privacy: .public) of \(cgWindows.count, privacy: .public) CG window(s) missing from folder map; refreshing + rebuilding mid-drag")
+            refreshFolderMapAndRebuild()
+        }
     }
 
     private func handleDragEnded() {
@@ -294,6 +301,22 @@ final class DropTargetsCoordinator {
             if Task.isCancelled { return }
             self.folderByID = map
             self.log.debug("folder map: \(map.count, privacy: .public) entries")
+        }
+    }
+
+    /// Refresh the folder map and, if the drag is still active when the
+    /// AE call returns, rebuild overlays so any windows that were missing
+    /// from the cache at drag-start get their panel.
+    private func refreshFolderMapAndRebuild() {
+        refreshTask?.cancel()
+        refreshTask = Task { [weak self] in
+            guard let self else { return }
+            let map = await self.snapshot.captureFolderMap()
+            if Task.isCancelled { return }
+            self.folderByID = map
+            self.log.debug("folder map (drag-time refresh): \(map.count, privacy: .public) entries")
+            guard self.dragActive else { return }
+            self.rebuildPanelsForCurrentSpace()
         }
     }
 
