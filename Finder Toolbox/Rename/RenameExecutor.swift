@@ -83,8 +83,12 @@ actor RenameExecutor {
     func executeDrop(urls: [URL], into targetFolder: URL) async -> BatchSummary {
         guard !urls.isEmpty else { return BatchSummary(outcomes: []) }
 
-        // Build the rename items, resolving conflicts in the target folder.
-        var items: [(source: URL, targetFolder: URL, newName: String)] = []
+        // Items whose source parent already equals the target folder are
+        // routed to a rename-only path. Finder's `move … to folder …`
+        // verb to the same folder is at best a no-op and at worst — on
+        // SMB volumes — fails outright with "operation can't be completed".
+        var sameFolderRenames: [(from: URL, to: String)] = []
+        var crossFolderItems: [(source: URL, targetFolder: URL, newName: String)] = []
         var claimedInTarget: Set<String> = []
         var outcomes: [RenameOutcome] = []
         var droppedPdfDecisions: [PdfPendingDecision] = []
@@ -97,21 +101,26 @@ actor RenameExecutor {
                 claimedNames: claimedInTarget
             )
 
-            // Source already in target folder and the name doesn't change:
-            // skip — nothing to do, and Finder's move-to-same-folder would
-            // be a no-op anyway.
-            if url.deletingLastPathComponent().path == targetFolder.path,
-               url.lastPathComponent == resolved {
+            let inSameFolder = url.deletingLastPathComponent().path == targetFolder.path
+            if inSameFolder, url.lastPathComponent == resolved {
                 outcomes.append(.skipped(url, reason: .alreadyCanonical))
                 continue
             }
 
             claimedInTarget.insert(resolved)
-            items.append((source: url, targetFolder: targetFolder, newName: resolved))
+            if inSameFolder {
+                sameFolderRenames.append((from: url, to: resolved))
+            } else {
+                crossFolderItems.append((source: url, targetFolder: targetFolder, newName: resolved))
+            }
         }
 
-        let executed = await bridge.moveAndRename(items)
-        outcomes.append(contentsOf: executed)
+        if !sameFolderRenames.isEmpty {
+            outcomes.append(contentsOf: await bridge.batchRename(sameFolderRenames))
+        }
+        if !crossFolderItems.isEmpty {
+            outcomes.append(contentsOf: await bridge.moveAndRename(crossFolderItems))
+        }
         return BatchSummary(outcomes: outcomes)
     }
 

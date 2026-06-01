@@ -153,14 +153,22 @@ actor FinderWindowSnapshot {
         // ones with a target folder). Plain `windows` would also include
         // info, clipping, and the desktop window — none of which have a
         // useful POSIX target.
+        // Use `URL of (target of w)` rather than `POSIX path of … as alias`.
+        // For volumes mounted under a path that collides with an existing
+        // system mount point (e.g. an SMB share named "home" landing at
+        // `/Volumes/home-1` because `/home` is autofs-reserved), the
+        // `as alias` coercion resolves the path through firmlinks back to
+        // `/System/Volumes/Data/home`, which is autofs-owned and rejects
+        // POSIX file creation with ENOTSUP. The `URL` property reports the
+        // actual mount path (e.g. `file:///Volumes/home-1/…`) instead.
         let source = """
             tell application "Finder"
                 set winList to every Finder window
                 set out to {}
                 repeat with w in winList
                     try
-                        set p to POSIX path of (target of w as alias)
-                        set end of out to {id of w, p, name of w}
+                        set u to URL of (target of w)
+                        set end of out to {id of w, u, name of w}
                     on error errMsg
                         set end of out to {-1, "ERR: " & errMsg, name of w}
                     end try
@@ -195,11 +203,22 @@ actor FinderWindowSnapshot {
                   let pathDesc = entry.atIndex(2),
                   let nameDesc = entry.atIndex(3) else { continue }
             let rawID = idDesc.int32Value
-            let path = pathDesc.stringValue ?? ""
+            let rawString = pathDesc.stringValue ?? ""
             let name = nameDesc.stringValue ?? ""
-            log.info("snapshot AE entry: id=\(rawID, privacy: .public) name=\"\(name, privacy: .public)\" path=\"\(path, privacy: .public)\"")
-            guard rawID > 0, !path.hasPrefix("ERR:") else { continue }
-            out[CGWindowID(rawID)] = (URL(fileURLWithPath: path), name)
+            log.info("snapshot AE entry: id=\(rawID, privacy: .public) name=\"\(name, privacy: .public)\" url=\"\(rawString, privacy: .public)\"")
+            guard rawID > 0, !rawString.hasPrefix("ERR:") else { continue }
+
+            // Finder returns a `file://` URL string; URL(string:) preserves
+            // the exact mount path. Fall back to fileURLWithPath only if
+            // the AE descriptor degenerated to a bare POSIX path (older
+            // Finder builds or odd edge cases).
+            let folderURL: URL
+            if rawString.hasPrefix("file:"), let parsed = URL(string: rawString) {
+                folderURL = parsed
+            } else {
+                folderURL = URL(fileURLWithPath: rawString)
+            }
+            out[CGWindowID(rawID)] = (folderURL, name)
         }
         return out
     }
