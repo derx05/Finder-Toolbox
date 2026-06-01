@@ -7,6 +7,7 @@ enum SettingsPage: Hashable {
     case fileRenaming
     case dropTargets
     case permissions
+    case advanced
     case about
 }
 
@@ -41,6 +42,10 @@ struct SettingsView: View {
                     .toolbar(.hidden)
             case .permissions:
                 PermissionsSettingsPage()
+                    .navigationTitle("")
+                    .toolbar(.hidden)
+            case .advanced:
+                AdvancedSettingsPage()
                     .navigationTitle("")
                     .toolbar(.hidden)
             case .about:
@@ -102,9 +107,9 @@ private struct SettingsSidebar: View {
                 NavigationLink(value: SettingsPage.permissions) {
                     Label("Permissions", systemImage: "lock.shield")
                 }
-            }
-
-            Section("Other") {
+                NavigationLink(value: SettingsPage.advanced) {
+                    Label("Storage", systemImage: "internaldrive")
+                }
                 NavigationLink(value: SettingsPage.about) {
                     Label("About", systemImage: "info.circle")
                 }

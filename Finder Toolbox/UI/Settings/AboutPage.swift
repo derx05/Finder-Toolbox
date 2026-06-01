@@ -52,8 +52,10 @@ struct AboutPage: View {
                                 .padding(.top, 4)
                         }
                     }
+
+                    Spacer(minLength: 0)
                 }
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 28)
 
                 Picker("Update channel", selection: channelBinding) {
