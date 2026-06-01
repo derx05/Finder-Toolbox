@@ -30,6 +30,29 @@
         -->
 
         <item>
+            <title>Finder Toolbox 0.2.0-beta.2</title>
+            <sparkle:version>2026.06.01.02</sparkle:version>
+            <sparkle:shortVersionString>0.2.0-beta.2</sparkle:shortVersionString>
+            <sparkle:channel>beta</sparkle:channel>
+            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <ul>
+                    <li>Drop targets: recover stuck overlays from missed drag-end events; show overlays immediately when the folder cache is cold and refresh mid-drag.</li>
+                    <li>Drop targets: folder drops honor folder-mode + folder-rename-scope prefs, including recursive descent after the move/copy lands.</li>
+                    <li>Undo: reverses drop-target moves and copies (not just renames); copies trashed via Finder so they sit in Finder's native undo stack.</li>
+                    <li>Dev: Debug builds get a distinct bundle ID and "Finder Toolbox-Debug.app" name so Automation/FDA/UserDefaults are tracked separately from release.</li>
+                    <li>Permissions: Finder Automation probe switched to AEDeterminePermissionToAutomateTarget (the old probe always reported Granted). Adds a "Request" button to ungranted entries.</li>
+                    <li>Fix: dropping an item on its own Finder window no longer bumps the canonical name to "… 2".</li>
+                </ul>
+            ]]></description>
+            <pubDate>Mon, 01 Jun 2026 18:30:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/derx05/Finder-Toolbox/releases/download/v0.2.0-beta.2/FinderToolbox-0.2.0-beta.2-2026.06.01.02.zip"
+                sparkle:edSignature="aHse9AozmLQqN3NQ/a/ejFuuzlFz60G8MgZQZPXqkBDQpB+IoPHNAKEeTEG450zgmR84ODrHyhpXorQAVT+TAQ==" length="3668972"
+                type="application/octet-stream" />
+        </item>
+
+        <item>
             <title>Finder Toolbox 0.2.0-beta.1</title>
             <sparkle:version>2026.06.01.01</sparkle:version>
             <sparkle:shortVersionString>0.2.0-beta.1</sparkle:shortVersionString>
