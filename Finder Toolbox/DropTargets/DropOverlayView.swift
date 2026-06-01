@@ -231,7 +231,12 @@ final class DropOverlayView: NSView {
         // currently-selected message(s) as .eml. See MailBridge for
         // the full rationale.
         if MailBridge.isMailDrag(pb) {
-            return performMailDrop()
+            // Parse the per-message pasteboard records on the main
+            // thread before handing off — the NSPasteboard is only
+            // safely readable here, not from the background queue
+            // that runs the AppleEvent round-trip.
+            let dragged = MailBridge.draggedMessages(from: pb)
+            return performMailDrop(dragged: dragged)
         }
 
         // Check for promises FIRST. Apps like Photos put both
@@ -302,7 +307,7 @@ final class DropOverlayView: NSView {
     /// returns `true` synchronously and resolves the actual file(s) on
     /// a background queue so the drag finalize doesn't block on the
     /// AppleEvent round-trip with Mail.
-    private func performMailDrop() -> Bool {
+    private func performMailDrop(dragged: [MailBridge.DraggedMessage]) -> Bool {
         guard let dir = makeStagingDir() else { return false }
 
         let folderName = self.folderName
@@ -311,7 +316,7 @@ final class DropOverlayView: NSView {
 
         DispatchQueue.global(qos: .userInitiated).async {
             do {
-                let urls = try MailBridge.saveSelectedMessages(to: dir)
+                let urls = try MailBridge.saveMessages(dragged, to: dir)
                 DispatchQueue.main.async {
                     log.info("dropOverlay[\(folderName, privacy: .public)]: Mail bridge resolved \(urls.count, privacy: .public) message(s)")
                     if urls.isEmpty {
