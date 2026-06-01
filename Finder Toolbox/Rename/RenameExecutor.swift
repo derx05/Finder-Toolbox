@@ -157,13 +157,20 @@ actor RenameExecutor {
                 desiredName = canonicalName(for: url, pdfDecisions: &droppedPdfDecisions)
             }
 
+            // For a same-folder move, the source item still lives at its
+            // original name in the target directory. Exclude it from the
+            // collision check — otherwise an item whose canonical form
+            // equals its current name would collide with itself and the
+            // resolver would bump the result to "name 2".
+            let inSameFolder = url.deletingLastPathComponent().path == targetFolder.path
+            let ignoreSelf: String? = (operation == .move && inSameFolder) ? url.lastPathComponent : nil
             let resolved = resolveConflict(
                 target: desiredName,
                 in: targetFolder,
-                claimedNames: claimedInTarget
+                claimedNames: claimedInTarget,
+                ignoringExistingName: ignoreSelf
             )
 
-            let inSameFolder = url.deletingLastPathComponent().path == targetFolder.path
             if operation == .move, inSameFolder, url.lastPathComponent == resolved {
                 outcomes.append(.skipped(url, reason: .alreadyCanonical))
                 // Top-level didn't move/rename, but recursive mode should
@@ -639,13 +646,19 @@ actor RenameExecutor {
         return abs(comps.day ?? 0)
     }
 
+    /// `ignoringExistingName` excludes a single on-disk name from the
+    /// collision check — used when an in-place rename or same-folder
+    /// move would otherwise see the source item itself as a conflict
+    /// and bump the result to "name 2".
     private func resolveConflict(
         target: String,
         in directory: URL,
-        claimedNames: Set<String>
+        claimedNames: Set<String>,
+        ignoringExistingName: String? = nil
     ) -> String {
         let exists: (String) -> Bool = { name in
             if claimedNames.contains(name) { return true }
+            if let ignored = ignoringExistingName, name == ignored { return false }
             let url = directory.appendingPathComponent(name)
             return FileManager.default.fileExists(atPath: url.path)
         }
