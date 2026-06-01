@@ -187,22 +187,21 @@ final class DropOverlayView: NSView {
         let panelFrame = window?.frame ?? .zero
         log.info("draggingEntered[\(self.folderName, privacy: .public)] mouseAt=\(NSStringFromPoint(mouseInScreen), privacy: .public) panelFrame=\(NSStringFromRect(panelFrame), privacy: .public) sourceMask=\(sourceMask.rawValue, privacy: .public)")
         setHighlighted(true)
-        // Prefer copy; fall back to whatever the source allows so the drop
-        // isn't rejected if the source only offers .move or .generic.
-        if sourceMask.contains(.copy) { return .copy }
-        if sourceMask.contains(.generic) { return .generic }
-        if sourceMask.contains(.move) { return .move }
-        if sourceMask.contains(.link) { return .link }
-        return []
+        // Never accept anything but .copy. Returning .generic or .move
+        // from a promise source (Photos, Mail) makes the source treat
+        // the destination as the new owner of the file — Photos will
+        // move the original asset out of its library bundle, corrupting
+        // the library; Mail can do the same to the message store.
+        // Better to refuse a drag than to shred someone's data.
+        guard sourceMask.contains(.copy) else {
+            log.info("dropOverlay[\(self.folderName, privacy: .public)]: source did not offer .copy (mask=\(sourceMask.rawValue, privacy: .public)) — declining drag")
+            return []
+        }
+        return .copy
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        let sourceMask = sender.draggingSourceOperationMask
-        if sourceMask.contains(.copy) { return .copy }
-        if sourceMask.contains(.generic) { return .generic }
-        if sourceMask.contains(.move) { return .move }
-        if sourceMask.contains(.link) { return .link }
-        return []
+        return sender.draggingSourceOperationMask.contains(.copy) ? .copy : []
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
@@ -222,9 +221,22 @@ final class DropOverlayView: NSView {
         var resolved: [URL] = []
         var tempDir: URL?
 
-        // Plain file URLs (Finder drags).
-        if let urls = pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] {
-            resolved.append(contentsOf: urls)
+        // Probe for file promises FIRST. Apps like Photos put BOTH
+        // `public.file-url` AND a file promise on the pasteboard, but
+        // the file URL points into the source's managed library bundle
+        // (e.g. `.photoslibrary/originals/...`). Reading that URL and
+        // handing it to the rename pipeline mutates the library's
+        // internal storage and corrupts the library. The promise is the
+        // source-blessed way to get a *detached copy* of the asset.
+        let promiseReceivers = pb.readObjects(forClasses: [NSFilePromiseReceiver.self], options: nil) as? [NSFilePromiseReceiver] ?? []
+
+        // Plain file URLs are only safe to consume when no promise is
+        // on offer (the Finder→Finder case where the URL is the real
+        // user-visible file on disk).
+        if promiseReceivers.isEmpty {
+            if let urls = pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] {
+                resolved.append(contentsOf: urls)
+            }
         }
 
         // Promised files (Mail, Safari, …). The receiver hands back an
@@ -232,7 +244,6 @@ final class DropOverlayView: NSView {
         // into a temp dir on demand. Lives under NSTemporaryDirectory
         // (`/var/folders/.../T/`), not the project — cleanup runs in
         // the coordinator after the rename pipeline moves the files out.
-        let promiseReceivers = pb.readObjects(forClasses: [NSFilePromiseReceiver.self], options: nil) as? [NSFilePromiseReceiver] ?? []
         if !promiseReceivers.isEmpty {
             let dir = FileManager.default.temporaryDirectory
                 .appendingPathComponent("finder-toolbox-drop-\(UUID().uuidString)")
