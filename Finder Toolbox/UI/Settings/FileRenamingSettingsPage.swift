@@ -11,6 +11,7 @@ struct FileRenamingSettingsPage: View {
     @State private var primaryHotkeyLabel = HotkeyManager.shared.currentShortcutLabel
     @State private var secondaryHotkeyLabel = HotkeyManager.shared.secondaryShortcutLabel
     @State private var secondaryEnabled = HotkeyManager.shared.secondaryEnabled
+    @AppStorage(DefaultsKeys.hotkeyEnabled) private var hotkeyEnabled = true
 
     @AppStorage(DefaultsKeys.cleanupTrimStem) private var trimStemWhitespace = false
     @AppStorage(DefaultsKeys.emlUseDateHeader) private var emlUseDateHeader = true
@@ -80,48 +81,66 @@ struct FileRenamingSettingsPage: View {
     var body: some View {
         Form {
             Section("Hotkey") {
-                HotkeyRow(
-                    title: secondaryEnabled ? "Rename (non-recursive)" : "Global Shortcut",
-                    label: primaryHotkeyLabel,
-                    isRecording: $isRecordingPrimary,
-                    onNewShortcut: { keyCode, modifiers in
-                        HotkeyManager.shared.update(keyCode: keyCode, modifiers: modifiers)
-                        primaryHotkeyLabel = HotkeyManager.shared.currentShortcutLabel
+                Toggle("Enable rename hotkey", isOn: Binding(
+                    get: { hotkeyEnabled },
+                    set: { newValue in
+                        HotkeyManager.shared.setEnabled(newValue)
+                        hotkeyEnabled = newValue
                     }
-                )
+                ))
+                .toggleStyle(.switch)
 
-                LabeledContent {
-                    Toggle("", isOn: Binding(
-                        get: { secondaryEnabled },
-                        set: { newValue in
-                            HotkeyManager.shared.setSecondaryEnabled(newValue)
-                            secondaryEnabled = newValue
-                        }
-                    ))
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                } label: {
-                    HStack(spacing: 6) {
-                        Text("Use second hotkey for recursive rename")
-                        InfoPopover(
-                            title: "Two-hotkey mode",
-                            detail: "When enabled, the primary hotkey renames only the selection (folders are renamed by their own name; contents are left alone). The second hotkey renames recursively — folders and everything inside them. Neither prompts; the choice is the keystroke.",
-                            exampleBefore: nil,
-                            exampleAfter: nil
-                        )
-                    }
+                if !hotkeyEnabled {
+                    Text("The global shortcut is not claimed while this is off. Drop Targets can still be used independently.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
-                if secondaryEnabled {
+                if hotkeyEnabled {
                     HotkeyRow(
-                        title: "Rename (recursive)",
-                        label: secondaryHotkeyLabel,
-                        isRecording: $isRecordingSecondary,
+                        title: secondaryEnabled ? "Rename (non-recursive)" : "Global Shortcut",
+                        label: primaryHotkeyLabel,
+                        isRecording: $isRecordingPrimary,
                         onNewShortcut: { keyCode, modifiers in
-                            HotkeyManager.shared.updateSecondary(keyCode: keyCode, modifiers: modifiers)
-                            secondaryHotkeyLabel = HotkeyManager.shared.secondaryShortcutLabel
+                            HotkeyManager.shared.update(keyCode: keyCode, modifiers: modifiers)
+                            primaryHotkeyLabel = HotkeyManager.shared.currentShortcutLabel
                         }
                     )
+
+                    LabeledContent {
+                        Toggle("", isOn: Binding(
+                            get: { secondaryEnabled },
+                            set: { newValue in
+                                HotkeyManager.shared.setSecondaryEnabled(newValue)
+                                secondaryEnabled = newValue
+                            }
+                        ))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text("Use second hotkey for recursive rename")
+                            InfoPopover(
+                                title: "Two-hotkey mode",
+                                detail: "When enabled, the primary hotkey renames only the selection (folders are renamed by their own name; contents are left alone). The second hotkey renames recursively — folders and everything inside them. Neither prompts; the choice is the keystroke.",
+                                exampleBefore: nil,
+                                exampleAfter: nil
+                            )
+                        }
+                    }
+
+                    if secondaryEnabled {
+                        HotkeyRow(
+                            title: "Rename (recursive)",
+                            label: secondaryHotkeyLabel,
+                            isRecording: $isRecordingSecondary,
+                            onNewShortcut: { keyCode, modifiers in
+                                HotkeyManager.shared.updateSecondary(keyCode: keyCode, modifiers: modifiers)
+                                secondaryHotkeyLabel = HotkeyManager.shared.secondaryShortcutLabel
+                            }
+                        )
+                    }
                 }
             }
 

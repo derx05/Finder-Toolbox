@@ -44,6 +44,11 @@ final class HotkeyManager {
     private(set) var secondaryKeyCode: Int
     private(set) var secondaryCarbonModifiers: UInt32
 
+    /// Master enable. When false, neither hotkey is registered; setup()
+    /// installs the Carbon handler anyway so re-enabling is a no-op
+    /// fast path. Mirrors `DefaultsKeys.hotkeyEnabled`.
+    private(set) var isEnabled: Bool
+
     private var primaryRef: EventHotKeyRef?
     private var secondaryRef: EventHotKeyRef?
     private var handlerRef: EventHandlerRef?
@@ -73,13 +78,35 @@ final class HotkeyManager {
         secondaryCarbonModifiers = (rawSecondary > 0 && rawSecondary <= 8192)
             ? UInt32(rawSecondary)
             : HotkeyManager.defaultSecondaryCarbonModifiers
+
+        // `hotkeyEnabled` is seeded to true via DefaultsKeys.registerInitialDefaults;
+        // bool(forKey:) returns false for that key only on the rare case where
+        // initial defaults haven't been registered yet (test harnesses, etc.).
+        isEnabled = d.object(forKey: DefaultsKeys.hotkeyEnabled) as? Bool ?? true
     }
 
     // Call once at app launch.
     func setup() {
         installCarbonHandler()
+        guard isEnabled else { return }
         registerPrimary()
         if secondaryEnabled { registerSecondary() }
+    }
+
+    /// Master enable/disable. When the user toggles this off in Settings,
+    /// both hotkeys are unregistered immediately so the global shortcuts
+    /// become free for other apps.
+    func setEnabled(_ enabled: Bool) {
+        guard enabled != isEnabled else { return }
+        isEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: DefaultsKeys.hotkeyEnabled)
+        if enabled {
+            registerPrimary()
+            if secondaryEnabled { registerSecondary() }
+        } else {
+            unregisterPrimary()
+            unregisterSecondary()
+        }
     }
 
     // Called by the settings recorder (NSEvent types) — converts internally to Carbon.
@@ -91,7 +118,7 @@ final class HotkeyManager {
         carbonModifiers = newCarbonMods
         UserDefaults.standard.set(newKeyInt, forKey: DefaultsKeys.hotkeyKeyCode)
         UserDefaults.standard.set(Int(newCarbonMods), forKey: DefaultsKeys.hotkeyModifiers)
-        registerPrimary()
+        if isEnabled { registerPrimary() }
     }
 
     func updateSecondary(keyCode newKey: UInt16, modifiers newMods: NSEvent.ModifierFlags) {
@@ -102,14 +129,14 @@ final class HotkeyManager {
         secondaryCarbonModifiers = newCarbonMods
         UserDefaults.standard.set(newKeyInt, forKey: DefaultsKeys.secondaryHotkeyKeyCode)
         UserDefaults.standard.set(Int(newCarbonMods), forKey: DefaultsKeys.secondaryHotkeyModifiers)
-        if secondaryEnabled { registerSecondary() }
+        if secondaryEnabled && isEnabled { registerSecondary() }
     }
 
     func setSecondaryEnabled(_ enabled: Bool) {
         guard enabled != secondaryEnabled else { return }
         secondaryEnabled = enabled
         UserDefaults.standard.set(enabled, forKey: DefaultsKeys.secondaryHotkeyEnabled)
-        if enabled { registerSecondary() } else { unregisterSecondary() }
+        if enabled && isEnabled { registerSecondary() } else { unregisterSecondary() }
     }
 
     func fire(id: UInt32) {
