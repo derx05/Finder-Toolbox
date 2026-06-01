@@ -45,6 +45,13 @@ actor RenameExecutor {
         return buildPlan(from: urls, folderMode: folderMode, renameFolders: renameFolders)
     }
 
+    /// Plan against a caller-supplied URL list rather than Finder's selection.
+    /// Used by the drop-target path to plan descendant renames against the
+    /// destination location after a folder has been moved/copied.
+    func planFor(urls: [URL], folderMode: FolderMode, renameFolders: FolderRenameScope) -> Plan {
+        buildPlan(from: urls, folderMode: folderMode, renameFolders: renameFolders)
+    }
+
     func execute(plan: Plan) async -> BatchSummary {
         var renames: [(from: URL, to: String)] = []
         var outcomes: [RenameOutcome] = []
@@ -83,12 +90,24 @@ actor RenameExecutor {
     /// hand off to Finder via `moveAndRename` so the result lands in
     /// Finder's undo stack.
     ///
+    /// `folderMode` and `renameFolders` are resolved by the caller from
+    /// the same prefs the hotkey rename uses, with any "ask" prompts
+    /// already answered. `.recursive` re-plans descendant renames at the
+    /// destination location *after* the move/copy lands, so the folder
+    /// only needs to be touched once on disk.
+    ///
     /// PDF ambiguities are accepted silently using the working defaults
     /// (heuristic over metadata, metadata over today). Surfacing the
     /// dialog mid-drag would be jarring — the drop UI is supposed to be
     /// a fast alternative path, not a modal one. A future enhancement
     /// could surface decisions in the end-of-drop summary instead.
-    func executeDrop(urls: [URL], into targetFolder: URL, operation: DropOperation) async -> BatchSummary {
+    func executeDrop(
+        urls: [URL],
+        into targetFolder: URL,
+        operation: DropOperation,
+        folderMode: FolderMode,
+        renameFolders: FolderRenameScope
+    ) async -> BatchSummary {
         guard !urls.isEmpty else { return BatchSummary(outcomes: []) }
 
         // For .move, items whose source parent already equals the target
@@ -103,8 +122,24 @@ actor RenameExecutor {
         var outcomes: [RenameOutcome] = []
         var droppedPdfDecisions: [PdfPendingDecision] = []
 
+        // Folders whose descendants need renaming after the top-level
+        // move/copy lands. Stored as (destinationURL) — the folder's
+        // post-move location, where we'll plan + execute against.
+        var recursiveFolderDestinations: [URL] = []
+
         for url in urls {
-            let desiredName = canonicalName(for: url, pdfDecisions: &droppedPdfDecisions)
+            let isDir = isDirectory(url)
+
+            // Pick the destination leaf name. Folders aren't renamed when
+            // the scope is `.filesOnly`; everything else gets the same
+            // canonical treatment as the hotkey path.
+            let desiredName: String
+            if isDir, renameFolders == .filesOnly {
+                desiredName = url.lastPathComponent
+            } else {
+                desiredName = canonicalName(for: url, pdfDecisions: &droppedPdfDecisions)
+            }
+
             let resolved = resolveConflict(
                 target: desiredName,
                 in: targetFolder,
@@ -114,6 +149,11 @@ actor RenameExecutor {
             let inSameFolder = url.deletingLastPathComponent().path == targetFolder.path
             if operation == .move, inSameFolder, url.lastPathComponent == resolved {
                 outcomes.append(.skipped(url, reason: .alreadyCanonical))
+                // Top-level didn't move/rename, but recursive mode should
+                // still descend into the folder in place.
+                if isDir, folderMode == .recursive {
+                    recursiveFolderDestinations.append(url)
+                }
                 continue
             }
 
@@ -122,6 +162,12 @@ actor RenameExecutor {
                 sameFolderRenames.append((from: url, to: resolved))
             } else {
                 crossFolderItems.append((source: url, targetFolder: targetFolder, newName: resolved))
+            }
+
+            if isDir, folderMode == .recursive {
+                recursiveFolderDestinations.append(
+                    targetFolder.appendingPathComponent(resolved)
+                )
             }
         }
 
@@ -136,6 +182,24 @@ actor RenameExecutor {
                 outcomes.append(contentsOf: await bridge.copyAndRename(crossFolderItems))
             }
         }
+
+        // Recursive descent into each dropped folder at its new location.
+        // The top-level entry in the resulting plan will be skipped as
+        // "already canonical" (the folder was just renamed by the
+        // move/copy above) or excluded entirely under `.filesOnly`, so
+        // re-planning here doesn't double-rename the folder.
+        for newFolderURL in recursiveFolderDestinations {
+            guard FileManager.default.fileExists(atPath: newFolderURL.path) else { continue }
+            let recursivePlan = buildPlan(
+                from: [newFolderURL],
+                folderMode: .recursive,
+                renameFolders: renameFolders
+            )
+            if recursivePlan.isEmpty { continue }
+            let subSummary = await execute(plan: recursivePlan)
+            outcomes.append(contentsOf: subSummary.outcomes)
+        }
+
         return BatchSummary(outcomes: outcomes)
     }
 

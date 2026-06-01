@@ -274,7 +274,58 @@ final class AppController: ObservableObject {
             return
         }
 
-        let summary = await executor.executeDrop(urls: urls, into: targetFolder, operation: operation)
+        // Resolve folder-mode + folder-scope from the file-renamer prefs
+        // when the drop contains any folders. Same prefs and same "ask"
+        // dialogs the hotkey path uses, so dropping a folder behaves the
+        // same way as selecting one and pressing the hotkey. The
+        // two-hotkey setting is intentionally ignored here — drops have
+        // no secondary hotkey to switch behavior with.
+        let folderCount = urls.reduce(into: 0) { count, url in
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
+                count += 1
+            }
+        }
+        let otherCount = urls.count - folderCount
+        let resolvedFolderMode: FolderMode
+        let resolvedRenameScope: FolderRenameScope
+        if folderCount == 0 {
+            resolvedFolderMode = .flat
+            resolvedRenameScope = .filesAndFolders
+        } else {
+            switch FolderModePreference.current() {
+            case .flat:
+                resolvedFolderMode = .flat
+            case .recursive:
+                resolvedFolderMode = .recursive
+            case .ask:
+                switch FolderModeDialog.askFolderMode(folderCount: folderCount, otherCount: otherCount) {
+                case .flat:      resolvedFolderMode = .flat
+                case .recursive: resolvedFolderMode = .recursive
+                case .cancel:    return
+                }
+            }
+            switch FolderRenameScopePreference.current() {
+            case .filesOnly:
+                resolvedRenameScope = .filesOnly
+            case .filesAndFolders:
+                resolvedRenameScope = .filesAndFolders
+            case .ask:
+                switch FolderModeDialog.askFolderRenameScope(folderCount: folderCount, fileCount: otherCount) {
+                case .filesOnly:       resolvedRenameScope = .filesOnly
+                case .filesAndFolders: resolvedRenameScope = .filesAndFolders
+                case .cancel:          return
+                }
+            }
+        }
+
+        let summary = await executor.executeDrop(
+            urls: urls,
+            into: targetFolder,
+            operation: operation,
+            folderMode: resolvedFolderMode,
+            renameFolders: resolvedRenameScope
+        )
 
         if PermissionsManager.shared.finderAutomationStatus == .denied {
             SummaryDialog.showPermissionDenied()
