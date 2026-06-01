@@ -21,7 +21,11 @@ struct PermissionsSettingsPage: View {
                     .padding(.bottom, 4)
 
                 ForEach(Array(PermissionsCatalog.all.enumerated()), id: \.offset) { _, entry in
-                    PermissionCard(entry: entry, status: status(for: entry.kind))
+                    PermissionCard(
+                        entry: entry,
+                        status: status(for: entry.kind),
+                        onRequest: requestAction(for: entry.kind)
+                    )
                 }
             }
             .padding(20)
@@ -39,11 +43,26 @@ struct PermissionsSettingsPage: View {
         case .fullDiskAccess: permissions.fullDiskAccessStatus
         }
     }
+
+    /// Surfaces the system Automation prompt for the relevant target.
+    /// Returns `nil` for Full Disk Access — TCC doesn't expose a
+    /// programmatic prompt for it; the only path is System Settings.
+    private func requestAction(for kind: PermissionsCatalog.Kind) -> (() -> Void)? {
+        switch kind {
+        case .automation:
+            return { Task { await permissions.requestFinderAutomation() } }
+        case .automationMail:
+            return { Task { await permissions.requestMailAutomation() } }
+        case .fullDiskAccess:
+            return nil
+        }
+    }
 }
 
 private struct PermissionCard: View {
     let entry: PermissionsCatalog.Entry
     let status: PermissionsManager.Status
+    let onRequest: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -80,16 +99,20 @@ private struct PermissionCard: View {
                 }
             }
 
-            if let url = entry.settingsURL {
-                HStack {
-                    Spacer()
+            HStack {
+                Spacer()
+                if let onRequest, status != .authorized {
+                    Button("Request") { onRequest() }
+                        .controlSize(.regular)
+                }
+                if let url = entry.settingsURL {
                     Button("Open in System Settings") {
                         NSWorkspace.shared.open(url)
                     }
                     .controlSize(.regular)
                 }
-                .padding(.top, 4)
             }
+            .padding(.top, 4)
         }
         .padding(14)
         .background(Color(nsColor: .controlBackgroundColor),

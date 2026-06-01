@@ -54,40 +54,69 @@ final class PermissionsManager: ObservableObject {
     /// has the same job to do (open System Settings, or trigger the grant
     /// by performing a Mail drag once).
     private func probeMailAutomationStatus() -> Status {
-        let target = NSAppleEventDescriptor(bundleIdentifier: "com.apple.mail")
+        Self.probeAutomation(bundleID: "com.apple.mail", askUserIfNeeded: false)
+    }
+
+    /// Queries TCC for the current Finder Automation grant via
+    /// `AEDeterminePermissionToAutomateTarget` — same mechanism as the
+    /// Mail probe. We previously ran `tell application "Finder" to get
+    /// version` as the probe, but `get version` of an app is a
+    /// "by-the-way" Apple Event that macOS resolves from the bundle's
+    /// Info.plist locally without sending an AE to the running process,
+    /// so TCC was never consulted and the probe always returned
+    /// `.authorized` even when the real grant was missing — the bug
+    /// surfaced after the Debug bundle ID change forced a fresh TCC
+    /// state and overlays silently failed.
+    ///
+    /// "Never asked yet" (-1744) collapses into `.denied` so the UI tells
+    /// the user there's an action to take; the actual prompt fires when
+    /// the user performs a real rename/drop.
+    func checkPermission() async {
+        guard finderAutomationStatus == .unknown else { return }
+        finderAutomationStatus = probeFinderAutomationStatus()
+    }
+
+    private func probeFinderAutomationStatus() -> Status {
+        Self.probeAutomation(bundleID: "com.apple.finder", askUserIfNeeded: false)
+    }
+
+    /// Surface the system Automation prompt for Finder. macOS shows the
+    /// dialog if no TCC record exists for this app/target pair yet; if
+    /// the user previously denied it, the call returns without
+    /// re-prompting and the user has to go through System Settings.
+    /// Run off-main because the prompt blocks the calling thread.
+    func requestFinderAutomation() async {
+        let result = await Task.detached(priority: .userInitiated) {
+            Self.probeAutomation(bundleID: "com.apple.finder", askUserIfNeeded: true)
+        }.value
+        finderAutomationStatus = result
+    }
+
+    /// Mirror of `requestFinderAutomation` for Mail — only relevant to
+    /// the Mail-drag path of the drop-targets feature.
+    func requestMailAutomation() async {
+        let result = await Task.detached(priority: .userInitiated) {
+            Self.probeAutomation(bundleID: "com.apple.mail", askUserIfNeeded: true)
+        }.value
+        mailAutomationStatus = result
+    }
+
+    nonisolated private static func probeAutomation(bundleID: String, askUserIfNeeded: Bool) -> Status {
+        let target = NSAppleEventDescriptor(bundleIdentifier: bundleID)
         guard let descPtr = target.aeDesc else { return .unknown }
         var desc = descPtr.pointee
         let status = AEDeterminePermissionToAutomateTarget(
             &desc,
             AEEventClass(typeWildCard),
             AEEventID(typeWildCard),
-            false
+            askUserIfNeeded
         )
         switch status {
-        case noErr:                              return .authorized
-        case OSStatus(errAEEventNotPermitted):   return .denied
-        case -1744 /* errAEEventWouldRequireUserConsent */: return .denied
-        default:                                 return .unknown
+        case noErr:                                          return .authorized
+        case OSStatus(errAEEventNotPermitted):               return .denied
+        case -1744 /* errAEEventWouldRequireUserConsent */:  return .denied
+        default:                                             return .unknown
         }
-    }
-
-    // Runs a harmless script to probe permission state (and trigger the system prompt on first use).
-    // Call from a background Task; NSAppleScript is synchronous.
-    func checkPermission() async {
-        guard finderAutomationStatus == .unknown else { return }
-        let status = await Task.detached(priority: .userInitiated) {
-            let source = "tell application \"Finder\" to get version"
-            guard let script = NSAppleScript(source: source) else { return Status.unknown }
-            var errorInfo: NSDictionary?
-            script.executeAndReturnError(&errorInfo)
-            if let info = errorInfo {
-                let number = (info["NSAppleScriptErrorNumber"] as? Int) ?? 0
-                return number == -1743 ? Status.denied : Status.unknown
-            }
-            return Status.authorized
-        }.value
-
-        finderAutomationStatus = status
     }
 
     func openSystemSettings() {

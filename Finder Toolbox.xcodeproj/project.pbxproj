@@ -355,7 +355,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Finder Toolbox/Finder Toolbox.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2026.06.01.01;
+				CURRENT_PROJECT_VERSION = 2026.06.01.02;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = S5RTVC5QRF;
 				ENABLE_APP_SANDBOX = NO;
@@ -363,7 +363,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Finder Toolbox/Finder-Toolbox-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Finder Toolbox";
+				INFOPLIST_KEY_CFBundleDisplayName = "Finder Toolbox (Debug)";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Finder Toolbox needs access to Finder to rename your selected files.";
@@ -375,9 +375,9 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = "0.2.0-beta.1";
-				PRODUCT_BUNDLE_IDENTIFIER = "danielammann.Finder-Toolbox";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				MARKETING_VERSION = "0.2.0-beta.2";
+				PRODUCT_BUNDLE_IDENTIFIER = "danielammann.Finder-Toolbox.debug";
+				PRODUCT_NAME = "$(TARGET_NAME)-Debug";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -396,7 +396,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Finder Toolbox/Finder Toolbox.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2026.06.01.01;
+				CURRENT_PROJECT_VERSION = 2026.06.01.02;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = S5RTVC5QRF;
 				ENABLE_APP_SANDBOX = NO;
@@ -416,7 +416,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = "0.2.0-beta.1";
+				MARKETING_VERSION = "0.2.0-beta.2";
 				PRODUCT_BUNDLE_IDENTIFIER = "danielammann.Finder-Toolbox";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;

@@ -76,10 +76,18 @@ final class AppController: ObservableObject {
     /// the hotkey-registration conflict and would no longer respond to the
     /// polite quit AppleEvent.
     private static func terminateOtherInstances() {
-        guard let bundleID = Bundle.main.bundleIdentifier else { return }
+        // Debug and Release builds use different bundle IDs (so they can
+        // hold independent Full Disk Access entries), but they still
+        // conflict on global hotkey registration. Kill *both* siblings:
+        // the other-config copy as well as same-config instances.
         let me = ProcessInfo.processInfo.processIdentifier
-        let others = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
-            .filter { $0.processIdentifier != me }
+        let candidateIDs = [
+            "danielammann.Finder-Toolbox",
+            "danielammann.Finder-Toolbox.debug",
+        ]
+        let others = candidateIDs.flatMap { id in
+            NSRunningApplication.runningApplications(withBundleIdentifier: id)
+        }.filter { $0.processIdentifier != me }
         for app in others {
             app.forceTerminate()
         }
