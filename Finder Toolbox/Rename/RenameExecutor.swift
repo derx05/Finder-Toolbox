@@ -11,8 +11,16 @@ actor RenameExecutor {
         /// File-only count (excludes directory self-renames). Used for the
         /// threshold confirmation prompt in recursive mode.
         let fileCount: Int
-        /// Folder-self count (folders in the selection or descended into).
+        /// Folder-self count for folders actually included in `renames`.
+        /// When the active `FolderRenameScope` is `.filesOnly` this is 0
+        /// even if the selection contained folders.
         let folderCount: Int
+        /// Folders that were encountered (in the selection or via recursive
+        /// descent), regardless of whether they'll actually be renamed.
+        /// Drives the "selection contains N folders" prompt so the
+        /// dialog can fire even when `.filesOnly` suppressed the folder
+        /// renames from `renames`.
+        let foldersInSelection: Int
         /// PDFs whose date couldn't be resolved silently. `AppController`
         /// drives the user prompt against this list and then calls
         /// `applyPdfResolutions` to finalize the plan before `execute`.
@@ -32,9 +40,9 @@ actor RenameExecutor {
 
     /// Plans without executing. Lets the caller display a confirmation
     /// (file count) before committing.
-    func plan(folderMode: FolderMode) async throws -> Plan {
+    func plan(folderMode: FolderMode, renameFolders: FolderRenameScope = .filesAndFolders) async throws -> Plan {
         let urls = try await bridge.selectedFileURLs()
-        return buildPlan(from: urls, folderMode: folderMode)
+        return buildPlan(from: urls, folderMode: folderMode, renameFolders: renameFolders)
     }
 
     func execute(plan: Plan) async -> BatchSummary {
@@ -145,7 +153,7 @@ actor RenameExecutor {
 
     // MARK: - Plan construction
 
-    private func buildPlan(from selection: [URL], folderMode: FolderMode) -> Plan {
+    private func buildPlan(from selection: [URL], folderMode: FolderMode, renameFolders: FolderRenameScope) -> Plan {
         var items: [(url: URL, isDir: Bool)] = []
         var seenPaths = Set<String>()
 
@@ -199,12 +207,20 @@ actor RenameExecutor {
         }
 
         // Compute the final post-batch URL by translating ancestor renames.
+        // When `renameFolders` is .filesOnly, folder names are dropped from
+        // the planned list but their entries in `newNamesByPath` still apply
+        // via `translatedPath` — except that here a folder's "new name" is
+        // its original name (it wasn't actually renamed), so descendants
+        // resolve to their natural parents.
         var planned: [PlannedRename] = []
         planned.reserveCapacity(items.count)
         for item in items {
+            if item.isDir && renameFolders == .filesOnly { continue }
             let newName = newNamesByPath[item.url.path] ?? item.url.lastPathComponent
             let parent = item.url.deletingLastPathComponent().path
-            let translatedParent = translatedPath(parent, renames: newNamesByPath)
+            let translatedParent = translatedPath(parent, renames: filesOnlyRenameMap(
+                newNamesByPath, items: items, renameFolders: renameFolders
+            ))
             let final = URL(
                 fileURLWithPath: (translatedParent as NSString).appendingPathComponent(newName)
             )
@@ -219,9 +235,27 @@ actor RenameExecutor {
         return Plan(
             renames: planned,
             fileCount: fileCount,
-            folderCount: folderCount,
+            folderCount: renameFolders == .filesOnly ? 0 : folderCount,
+            foldersInSelection: folderCount,
             pdfDecisions: pdfDecisions
         )
+    }
+
+    /// When `.filesOnly`, drop folder entries from the rename map so
+    /// `translatedPath` doesn't substitute new folder names into descendant
+    /// paths. Folders aren't being renamed in this mode, so their on-disk
+    /// names remain authoritative.
+    private func filesOnlyRenameMap(
+        _ map: [String: String],
+        items: [(url: URL, isDir: Bool)],
+        renameFolders: FolderRenameScope
+    ) -> [String: String] {
+        guard renameFolders == .filesOnly else { return map }
+        var trimmed = map
+        for item in items where item.isDir {
+            trimmed.removeValue(forKey: item.url.path)
+        }
+        return trimmed
     }
 
     /// Rebuild a plan with chosen dates substituted in for previously
@@ -287,6 +321,7 @@ actor RenameExecutor {
             renames: updated,
             fileCount: plan.fileCount,
             folderCount: plan.folderCount,
+            foldersInSelection: plan.foldersInSelection,
             pdfDecisions: []  // resolutions consumed
         )
     }

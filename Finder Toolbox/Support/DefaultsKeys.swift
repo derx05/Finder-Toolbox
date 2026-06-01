@@ -55,6 +55,13 @@ nonisolated enum DefaultsKeys {
     // Folders. `folderMode` raw values come from `FolderModePreference.rawValue`.
     // `recursiveWarnThreshold` is the file count above which recursive batches require explicit confirmation.
     static let folderMode               = "folders.mode"
+    // `folderRenameScope` raw values come from `FolderRenameScopePreference.rawValue`.
+    // Decides whether folder *names* themselves are eligible for renaming
+    // when folders are involved (either in the selection or reached via
+    // recursive descent). Orthogonal to `folderMode`: scope decides whether
+    // folders are renamed, mode decides whether we descend into them.
+    // Defaults to files-only — folders normally don't carry a meaningful date.
+    static let folderRenameScope        = "folders.renameScope"
     // When false, recursive batches skip the size-threshold confirmation
     // dialog entirely. Risky — exists so power users who know what they're
     // doing can avoid the prompt without setting an absurdly high threshold.
@@ -89,6 +96,7 @@ nonisolated enum DefaultsKeys {
             datePriority:               "content", // DatePriority.default
             dateAmbiguityOrder:         "dayFirst", // DateAmbiguityOrder.default
             recursiveWarnEnabled:       true,
+            folderRenameScope:          "filesOnly", // FolderRenameScopePreference.default
             pdfUseContentDate:          true,
             pdfConflictBehavior:        "ask",   // PdfConflictBehavior.default
             pdfNoDateBehavior:          "ask",   // PdfNoDateBehavior.default

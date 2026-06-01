@@ -16,6 +16,7 @@ struct FileRenamingSettingsPage: View {
     @AppStorage(DefaultsKeys.cleanupTrimStem) private var trimStemWhitespace = false
     @AppStorage(DefaultsKeys.emlUseDateHeader) private var emlUseDateHeader = true
     @AppStorage(DefaultsKeys.folderMode) private var folderModeRaw = FolderModePreference.default.rawValue
+    @AppStorage(DefaultsKeys.folderRenameScope) private var folderRenameScopeRaw = FolderRenameScopePreference.default.rawValue
     @AppStorage(DefaultsKeys.recursiveWarnEnabled) private var recursiveWarnEnabled = true
     @AppStorage(DefaultsKeys.recursiveWarnThreshold) private var recursiveWarnThreshold = AppController.defaultRecursiveWarnThreshold
 
@@ -33,6 +34,13 @@ struct FileRenamingSettingsPage: View {
         Binding(
             get: { FolderModePreference(rawValue: folderModeRaw) ?? .default },
             set: { folderModeRaw = $0.rawValue }
+        )
+    }
+
+    private var folderRenameScope: Binding<FolderRenameScopePreference> {
+        Binding(
+            get: { FolderRenameScopePreference(rawValue: folderRenameScopeRaw) ?? .default },
+            set: { folderRenameScopeRaw = $0.rawValue }
         )
     }
 
@@ -224,6 +232,25 @@ struct FileRenamingSettingsPage: View {
                                 : "Controls what happens when the Finder selection contains a folder. \"Ask\" prompts each time, \"folder only\" renames just the folder itself, \"recursively\" descends into the folder and renames every file and subfolder inside it. Hidden files (.DS_Store, dotfiles) are always skipped.",
                             exampleBefore: nil,
                             exampleAfter: nil
+                        )
+                    }
+                }
+
+                LabeledContent {
+                    Picker("", selection: folderRenameScope) {
+                        Text("Files only").tag(FolderRenameScopePreference.filesOnly)
+                        Text("Files and folders").tag(FolderRenameScopePreference.filesAndFolders)
+                        Text("Ask each time").tag(FolderRenameScopePreference.ask)
+                    }
+                    .labelsHidden()
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("Rename folder names")
+                        InfoPopover(
+                            title: "Folder rename scope",
+                            detail: "Decides whether folder *names* themselves are eligible for renaming when folders are involved (either in the selection or reached by recursive descent). \"Files only\" leaves every folder name untouched — useful when folders never need a date prefix. \"Files and folders\" applies the date prefix to folder names too. \"Ask\" prompts each time. This is independent of the recursive setting above: with files-only + recursive, the batch descends into folders and renames the files inside but leaves folder names alone.",
+                            exampleBefore: "Selection: \"Report.pdf\", \"2024 Invoices/\"",
+                            exampleAfter: "Renamed: \"2024-… Report.pdf\". Folder untouched."
                         )
                     }
                 }

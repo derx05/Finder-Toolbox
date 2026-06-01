@@ -32,6 +32,37 @@ enum FolderModePreference: String, CaseIterable, Sendable {
     }
 }
 
+/// Whether folder *names* are eligible for renaming when a batch involves
+/// folders (either in the selection or reached via recursive descent).
+///
+/// Orthogonal to `FolderMode`: scope decides whether folders are renamed,
+/// mode decides whether we descend into them. With `.filesOnly` and
+/// recursive mode, the batch walks into folders and renames the files
+/// inside but leaves every folder name alone.
+nonisolated enum FolderRenameScope: Sendable {
+    case filesOnly
+    case filesAndFolders
+}
+
+/// Persisted in `UserDefaults` under `DefaultsKeys.folderRenameScope`. The
+/// runtime scope a batch uses is `FolderRenameScope`; this type adds an
+/// "ask the user" option for the settings UI.
+enum FolderRenameScopePreference: String, CaseIterable, Sendable {
+    case filesOnly       = "filesOnly"
+    case filesAndFolders = "filesAndFolders"
+    case ask
+
+    static let `default`: FolderRenameScopePreference = .filesOnly
+
+    static func current() -> FolderRenameScopePreference {
+        guard let raw = UserDefaults.standard.string(forKey: DefaultsKeys.folderRenameScope),
+              let value = FolderRenameScopePreference(rawValue: raw) else {
+            return .default
+        }
+        return value
+    }
+}
+
 /// Whose date wins when the filename already starts with a recognisable
 /// date prefix AND content extraction (`.eml` Date header, PDF body) finds
 /// a different one.

@@ -39,6 +39,43 @@ enum FolderModeDialog {
         }
     }
 
+    enum ScopeChoice {
+        case filesOnly
+        case filesAndFolders
+        case cancel
+    }
+
+    /// Shown when the user's `FolderRenameScopePreference` is `.ask` and the
+    /// batch involves folders. Decides whether folder names themselves are
+    /// eligible for renaming. Orthogonal to the recursive-vs-flat choice
+    /// surfaced by `askFolderMode`.
+    static func askFolderRenameScope(folderCount: Int, fileCount: Int) -> ScopeChoice {
+        let alert = NSAlert()
+        alert.messageText = folderCount == 1
+            ? "Selection contains a folder"
+            : "Selection contains \(folderCount) folders"
+
+        var parts: [String] = []
+        if fileCount > 0 {
+            parts.append("\(fileCount) file\(fileCount == 1 ? "" : "s") will be renamed.")
+        }
+        parts.append("Should folder names be renamed too?")
+        alert.informativeText = parts.joined(separator: " ")
+
+        alert.alertStyle = .informational
+        // First button is the default (return key) — files-only is the safer choice.
+        alert.addButton(withTitle: "Files Only")
+        alert.addButton(withTitle: "Files and Folders")
+        let cancel = alert.addButton(withTitle: "Cancel")
+        cancel.keyEquivalent = "\u{1b}"
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:  return .filesOnly
+        case .alertSecondButtonReturn: return .filesAndFolders
+        default:                       return .cancel
+        }
+    }
+
     /// Shown before a large recursive batch so the user doesn't accidentally
     /// rename hundreds of items when they meant to rename only the selection.
     static func confirmLargeBatch(fileCount: Int, folderCount: Int) -> Bool {

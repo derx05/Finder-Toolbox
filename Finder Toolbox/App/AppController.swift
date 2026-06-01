@@ -103,10 +103,13 @@ final class AppController: ObservableObject {
         defer { isRenaming = false }
 
         // Plan first so we can prompt with accurate counts before touching anything.
+        // Use .filesAndFolders here so `initialPlan.foldersInSelection` reflects
+        // every folder that *could* be renamed — the scope decision is resolved
+        // below and a replan applies the final filter.
         let initialMode: FolderMode = forcedFolderMode ?? .flat
         let initialPlan: RenameExecutor.Plan
         do {
-            initialPlan = try await executor.plan(folderMode: initialMode)
+            initialPlan = try await executor.plan(folderMode: initialMode, renameFolders: .filesAndFolders)
         } catch FinderBridgeError.noSelection {
             return
         } catch FinderBridgeError.automationDenied {
@@ -128,7 +131,7 @@ final class AppController: ObservableObject {
             // Two-hotkey mode: primary is fixed to non-recursive; the user
             // opted out of prompts by enabling the dedicated recursive hotkey.
             resolvedMode = .flat
-        } else if initialPlan.folderCount == 0 {
+        } else if initialPlan.foldersInSelection == 0 {
             resolvedMode = .flat  // No folders in selection → choice doesn't matter.
         } else {
             switch FolderModePreference.current() {
@@ -139,7 +142,7 @@ final class AppController: ObservableObject {
             case .ask:
                 let otherCount = initialPlan.renames.count - initialPlan.folderCount
                 switch FolderModeDialog.askFolderMode(
-                    folderCount: initialPlan.folderCount,
+                    folderCount: initialPlan.foldersInSelection,
                     otherCount: otherCount
                 ) {
                 case .flat:      resolvedMode = .flat
@@ -149,11 +152,40 @@ final class AppController: ObservableObject {
             }
         }
 
-        // Replan if recursion was chosen — the initial plan is flat-only.
+        // Resolve folder rename scope (do folder *names* get renamed?). Only
+        // relevant when folders are touched — for a pure file selection in
+        // flat mode there is nothing to ask about.
+        let resolvedScope: FolderRenameScope
+        let foldersWillBeTouched = initialPlan.foldersInSelection > 0
+        if !foldersWillBeTouched {
+            resolvedScope = .filesAndFolders  // No folders → choice is moot.
+        } else {
+            switch FolderRenameScopePreference.current() {
+            case .filesOnly:
+                resolvedScope = .filesOnly
+            case .filesAndFolders:
+                resolvedScope = .filesAndFolders
+            case .ask:
+                let fileCount = initialPlan.renames.count - initialPlan.folderCount
+                switch FolderModeDialog.askFolderRenameScope(
+                    folderCount: initialPlan.foldersInSelection,
+                    fileCount: fileCount
+                ) {
+                case .filesOnly:       resolvedScope = .filesOnly
+                case .filesAndFolders: resolvedScope = .filesAndFolders
+                case .cancel:          return
+                }
+            }
+        }
+
+        // Replan if recursion was chosen OR scope changed from the initial
+        // .filesAndFolders default — the initial plan is flat + folder-inclusive.
         let plan: RenameExecutor.Plan
-        if resolvedMode == .recursive && initialMode != .recursive {
+        let needsReplan = (resolvedMode == .recursive && initialMode != .recursive)
+            || resolvedScope == .filesOnly
+        if needsReplan {
             do {
-                plan = try await executor.plan(folderMode: .recursive)
+                plan = try await executor.plan(folderMode: resolvedMode, renameFolders: resolvedScope)
             } catch {
                 SummaryDialog.showIfNeeded(BatchSummary(outcomes: [
                     .failed(URL(fileURLWithPath: "/"), error: error.localizedDescription)
