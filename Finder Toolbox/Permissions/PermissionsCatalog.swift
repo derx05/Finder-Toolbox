@@ -11,6 +11,7 @@ enum PermissionsCatalog {
 
     enum Kind: Hashable {
         case automation        // com.apple.security.automation.apple-events → Finder
+        case automationMail    // com.apple.security.automation.apple-events → Mail
         case fullDiskAccess    // kTCCServiceSystemPolicyAllFiles
     }
 
@@ -57,6 +58,20 @@ enum PermissionsCatalog {
                 Feature(
                     name: "Drag-time drop targets",
                     detail: "Overlay pills over Finder windows let you drop files to rename and route them.",
+                    isRequired: true
+                ),
+            ],
+            settingsURL: URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")
+        ),
+        Entry(
+            kind: .automationMail,
+            displayName: "Automation (Mail)",
+            purpose: "Ask Mail to export the messages you drag onto a drop target as .eml files. Mail's drag-and-drop API doesn't fulfill file promises for any destination other than Finder, so AppleScript is the only supported way to receive a message drag.",
+            tradeoff: "Only relevant if you drag messages from Mail.app onto Finder Toolbox drop overlays. Without this grant, Mail drags are ignored; every other drop-target source (Finder, Safari, Photos, SMB shares, etc.) still works.",
+            features: [
+                Feature(
+                    name: "Drop messages from Mail.app",
+                    detail: "Dragging one or more messages from Mail onto a drop overlay exports them as .eml files into the destination folder and renames them with the smart-date pipeline (using the Date: header).",
                     isRequired: true
                 ),
             ],

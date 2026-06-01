@@ -32,6 +32,12 @@ struct DropTargetsSettingsPage: View {
                 )
 
                 permissionRow(
+                    title: "Automation — Mail",
+                    detail: "Required to drop messages from Mail.app. Mail's drag-and-drop API only fulfills file promises for Finder, so AppleScript is the only way to receive an .eml file. Drops from any other source work without this.",
+                    granted: permissions.mailAutomationStatus == .authorized
+                )
+
+                permissionRow(
                     title: "Full Disk Access",
                     detail: "Optional, but required when dropping into protected locations (Desktop, Documents, Downloads, iCloud Drive, …). Without it those drops fail with a permission error from Finder.",
                     granted: permissions.fullDiskAccessStatus == .authorized

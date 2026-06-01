@@ -35,6 +35,7 @@ struct PermissionsSettingsPage: View {
     private func status(for kind: PermissionsCatalog.Kind) -> PermissionsManager.Status {
         switch kind {
         case .automation:     permissions.finderAutomationStatus
+        case .automationMail: permissions.mailAutomationStatus
         case .fullDiskAccess: permissions.fullDiskAccessStatus
         }
     }

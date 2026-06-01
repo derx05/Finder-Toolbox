@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import Combine
+import Carbon
 
 @MainActor
 final class PermissionsManager: ObservableObject {
@@ -11,6 +12,12 @@ final class PermissionsManager: ObservableObject {
     }
 
     @Published private(set) var finderAutomationStatus: Status = .unknown
+
+    /// Mail Automation grant. Required only for the Mail-drag path of the
+    /// drop-targets feature (.eml export via AppleScript). Probed via
+    /// `AEDeterminePermissionToAutomateTarget` so we never launch Mail
+    /// just to check.
+    @Published private(set) var mailAutomationStatus: Status = .unknown
 
     /// Mirrors `hasFullDiskAccess()` as a publishable property so SwiftUI
     /// views (the Permissions settings page) can observe live changes
@@ -30,7 +37,38 @@ final class PermissionsManager: ObservableObject {
         // re-evaluated after the user opens Settings and toggles it.
         finderAutomationStatus = .unknown
         await checkPermission()
+        mailAutomationStatus = probeMailAutomationStatus()
         fullDiskAccessStatus = hasFullDiskAccess() ? .authorized : .denied
+    }
+
+    /// Queries TCC for the current Mail Automation grant without launching
+    /// Mail or surfacing a system prompt. Uses
+    /// `AEDeterminePermissionToAutomateTarget` with `askUserIfNeeded: false`.
+    ///
+    /// - `noErr` → granted
+    /// - `errAEEventNotPermitted` (-1743) → explicitly denied
+    /// - `errAEEventWouldRequireUserConsent` (-1744) → never asked yet
+    /// - anything else (Mail not installed, etc.) → unknown
+    ///
+    /// We collapse "never asked" into `.denied` for UI purposes: the user
+    /// has the same job to do (open System Settings, or trigger the grant
+    /// by performing a Mail drag once).
+    private func probeMailAutomationStatus() -> Status {
+        let target = NSAppleEventDescriptor(bundleIdentifier: "com.apple.mail")
+        guard let descPtr = target.aeDesc else { return .unknown }
+        var desc = descPtr.pointee
+        let status = AEDeterminePermissionToAutomateTarget(
+            &desc,
+            AEEventClass(typeWildCard),
+            AEEventID(typeWildCard),
+            false
+        )
+        switch status {
+        case noErr:                              return .authorized
+        case OSStatus(errAEEventNotPermitted):   return .denied
+        case -1744 /* errAEEventWouldRequireUserConsent */: return .denied
+        default:                                 return .unknown
+        }
     }
 
     // Runs a harmless script to probe permission state (and trigger the system prompt on first use).
