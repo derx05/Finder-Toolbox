@@ -303,16 +303,16 @@ final class DropTargetsCoordinator {
             log.debug("no qualifying Finder windows — skipping overlays")
             return
         }
-        log.info("showing overlays for windows:")
+        log.debug("showing overlays for windows:")
         for window in windows {
-            log.info("  Finder win id=\(window.windowID, privacy: .public) rect=\(NSStringFromRect(window.screenRect), privacy: .public) folder=\(window.targetFolder.path, privacy: .public) title=\"\(window.title, privacy: .public)\"")
+            log.debug("  Finder win id=\(window.windowID, privacy: .public) rect=\(NSStringFromRect(window.screenRect), privacy: .public) folder=\(window.targetFolder.path, privacy: .public) title=\"\(window.title, privacy: .public)\"")
         }
         for window in windows {
             let panel = DropOverlayPanel(target: window)
-            log.info("  panel for \"\(window.title, privacy: .public)\" placed at \(NSStringFromRect(panel.frame), privacy: .public)")
+            log.debug("  panel for \"\(window.title, privacy: .public)\" placed at \(NSStringFromRect(panel.frame), privacy: .public)")
             (panel.contentView as? DropOverlayView)?.onDrop = { [weak self] urls, tempDir, operation in
                 guard let self else { return }
-                self.log.info("drop accepted: \(urls.count, privacy: .public) file(s) → \(window.targetFolder.path, privacy: .public) op=\(String(describing: operation), privacy: .public)")
+                self.log.debug("drop accepted: \(urls.count, privacy: .public) file(s) → \(window.targetFolder.path, privacy: .public) op=\(String(describing: operation), privacy: .public)")
                 let targetFolder = window.targetFolder
                 Task { @MainActor in
                     await AppController.shared.performDrop(urls: urls, into: targetFolder, operation: operation)
@@ -328,7 +328,7 @@ final class DropTargetsCoordinator {
             panel.orderFrontRegardless()
             panels.append(panel)
         }
-        log.info("showed \(self.panels.count, privacy: .public) overlay panel(s)")
+        log.debug("showed \(self.panels.count, privacy: .public) overlay panel(s)")
     }
 
     private func hidePanels() {

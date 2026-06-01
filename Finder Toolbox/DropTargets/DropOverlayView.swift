@@ -305,9 +305,9 @@ final class DropOverlayView: NSView {
         let panelFrame = window?.frame ?? .zero
         let types = sender.draggingPasteboard.types?.map(\.rawValue).joined(separator: ", ") ?? "<none>"
         let (op, accepted) = desiredOperation(sender)
-        log.info("draggingEntered[\(self.folderName, privacy: .public)] mouseAt=\(NSStringFromPoint(mouseInScreen), privacy: .public) panelFrame=\(NSStringFromRect(panelFrame), privacy: .public) sourceMask=\(sourceMask.rawValue, privacy: .public) op=\(String(describing: op), privacy: .public) types=[\(types, privacy: .public)]")
+        log.debug("draggingEntered[\(self.folderName, privacy: .public)] mouseAt=\(NSStringFromPoint(mouseInScreen), privacy: .public) panelFrame=\(NSStringFromRect(panelFrame), privacy: .public) sourceMask=\(sourceMask.rawValue, privacy: .public) op=\(String(describing: op), privacy: .public) types=[\(types, privacy: .public)]")
         if accepted.isEmpty {
-            log.info("dropOverlay[\(self.folderName, privacy: .public)]: source declined both copy and move (mask=\(sourceMask.rawValue, privacy: .public)) — refusing drag")
+            log.debug("dropOverlay[\(self.folderName, privacy: .public)]: source declined both copy and move (mask=\(sourceMask.rawValue, privacy: .public)) — refusing drag")
             return []
         }
         // Defer the visual side effects: the first hover into a fresh
@@ -409,7 +409,7 @@ final class DropOverlayView: NSView {
             if let urls = pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] {
                 fileURLs.append(contentsOf: urls)
             }
-            log.info("dropOverlay[\(self.folderName, privacy: .public)]: drop resolved \(fileURLs.count, privacy: .public) file URL(s)")
+            log.debug("dropOverlay[\(self.folderName, privacy: .public)]: drop resolved \(fileURLs.count, privacy: .public) file URL(s)")
             if !fileURLs.isEmpty { onDrop?(fileURLs, nil, operation) }
             return !fileURLs.isEmpty
         }
@@ -445,7 +445,7 @@ final class DropOverlayView: NSView {
             do {
                 let urls = try MailBridge.saveMessages(dragged, to: dir)
                 DispatchQueue.main.async {
-                    log.info("dropOverlay[\(folderName, privacy: .public)]: Mail bridge resolved \(urls.count, privacy: .public) message(s)")
+                    log.debug("dropOverlay[\(folderName, privacy: .public)]: Mail bridge resolved \(urls.count, privacy: .public) message(s)")
                     if urls.isEmpty {
                         try? FileManager.default.removeItem(at: dir)
                         return
@@ -496,7 +496,7 @@ final class DropOverlayView: NSView {
             try? FileManager.default.removeItem(at: dir)
             return false
         }
-        log.info("dropOverlay[\(self.folderName, privacy: .public)]: legacy promise expecting \(names.count, privacy: .public) file(s): \(names.joined(separator: ", "), privacy: .public)")
+        log.debug("dropOverlay[\(self.folderName, privacy: .public)]: legacy promise expecting \(names.count, privacy: .public) file(s): \(names.joined(separator: ", "), privacy: .public)")
 
         let expected = names.map { dir.appendingPathComponent($0) }
         let folderName = self.folderName
@@ -528,7 +528,7 @@ final class DropOverlayView: NSView {
             DispatchQueue.main.async {
                 var all = fileURLs
                 all.append(contentsOf: resolved)
-                log.info("dropOverlay[\(folderName, privacy: .public)]: legacy promise resolved \(resolved.count, privacy: .public)/\(expected.count, privacy: .public) file(s)")
+                log.debug("dropOverlay[\(folderName, privacy: .public)]: legacy promise resolved \(resolved.count, privacy: .public)/\(expected.count, privacy: .public) file(s)")
                 if all.isEmpty {
                     try? FileManager.default.removeItem(at: dir)
                     return
@@ -568,7 +568,7 @@ final class DropOverlayView: NSView {
         group.notify(queue: .main) { [urlsBox] in
             var all = fileURLs
             all.append(contentsOf: urlsBox.urls)
-            log.info("dropOverlay[\(folderName, privacy: .public)]: modern promise resolved \(all.count, privacy: .public) file(s)")
+            log.debug("dropOverlay[\(folderName, privacy: .public)]: modern promise resolved \(all.count, privacy: .public) file(s)")
             if all.isEmpty {
                 try? FileManager.default.removeItem(at: dir)
                 return
@@ -600,20 +600,3 @@ private final class PromiseURLBox: @unchecked Sendable {
     }
 }
 
-/// Lock-protected bool flag. Used to signal promise-fulfillment
-/// completion from a background queue back to the main-thread runloop
-/// spin loop.
-private final class AtomicBool: @unchecked Sendable {
-    private let lock = NSLock()
-    private var value = false
-
-    func get() -> Bool {
-        lock.lock(); defer { lock.unlock() }
-        return value
-    }
-
-    func set(_ newValue: Bool) {
-        lock.lock(); defer { lock.unlock() }
-        value = newValue
-    }
-}

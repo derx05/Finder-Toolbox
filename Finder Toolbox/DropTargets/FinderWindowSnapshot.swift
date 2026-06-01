@@ -53,7 +53,7 @@ actor FinderWindowSnapshot {
     func captureFolderMap() async -> [CGWindowID: (URL, String)] {
         do {
             let map = try queryFinderTargets()
-            log.info("captureFolderMap: \(map.count, privacy: .public) Finder window(s) cached")
+            log.debug("captureFolderMap: \(map.count, privacy: .public) Finder window(s) cached")
             return map
         } catch {
             log.error("captureFolderMap: Apple Events FAILED: \(error.localizedDescription, privacy: .public)")
@@ -221,7 +221,7 @@ actor FinderWindowSnapshot {
 
         // Result is {finderWindowCount, [{id, path, name}, ...]}
         let finderCount = result.atIndex(1)?.int32Value ?? -1
-        log.info("snapshot AE: Finder windows=\(finderCount, privacy: .public)")
+        log.debug("snapshot AE: Finder windows=\(finderCount, privacy: .public)")
 
         var out: [CGWindowID: (URL, String)] = [:]
         guard let list = result.atIndex(2) else { return out }
@@ -235,7 +235,7 @@ actor FinderWindowSnapshot {
             let rawID = idDesc.int32Value
             let rawString = pathDesc.stringValue ?? ""
             let name = nameDesc.stringValue ?? ""
-            log.info("snapshot AE entry: id=\(rawID, privacy: .public) name=\"\(name, privacy: .public)\" url=\"\(rawString, privacy: .public)\"")
+            log.debug("snapshot AE entry: id=\(rawID, privacy: .public) name=\"\(name, privacy: .public)\" url=\"\(rawString, privacy: .public)\"")
             guard rawID > 0, !rawString.hasPrefix("ERR:") else { continue }
 
             // Finder returns a `file://` URL string; URL(string:) preserves
