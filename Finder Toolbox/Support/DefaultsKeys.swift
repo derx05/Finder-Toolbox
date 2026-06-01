@@ -70,6 +70,10 @@ nonisolated enum DefaultsKeys {
 
     // Drag-time drop targets (issue #29). Off by default — opt-in via Settings.
     static let dropTargetsEnabled       = "dropTargets.enabled"
+    // Hover gating: only show a window's overlay while the cursor is over
+    // that Finder window (and the window isn't occluded at the cursor).
+    // Cuts visual noise when many Finder windows are open.
+    static let dropTargetsHoverGated    = "dropTargets.hoverGated"
 
     // Updates. `updatesChannel` raw values come from `UpdateChannel.rawValue`;
     // `updatesAutoCheck` / `updatesAutoDownload` mirror Sparkle's
