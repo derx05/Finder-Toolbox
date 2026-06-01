@@ -11,10 +11,12 @@ struct FileRenamingSettingsPage: View {
     @State private var primaryHotkeyLabel = HotkeyManager.shared.currentShortcutLabel
     @State private var secondaryHotkeyLabel = HotkeyManager.shared.secondaryShortcutLabel
     @State private var secondaryEnabled = HotkeyManager.shared.secondaryEnabled
+    @AppStorage(DefaultsKeys.hotkeyEnabled) private var hotkeyEnabled = true
 
     @AppStorage(DefaultsKeys.cleanupTrimStem) private var trimStemWhitespace = false
     @AppStorage(DefaultsKeys.emlUseDateHeader) private var emlUseDateHeader = true
     @AppStorage(DefaultsKeys.folderMode) private var folderModeRaw = FolderModePreference.default.rawValue
+    @AppStorage(DefaultsKeys.folderRenameScope) private var folderRenameScopeRaw = FolderRenameScopePreference.default.rawValue
     @AppStorage(DefaultsKeys.recursiveWarnEnabled) private var recursiveWarnEnabled = true
     @AppStorage(DefaultsKeys.recursiveWarnThreshold) private var recursiveWarnThreshold = AppController.defaultRecursiveWarnThreshold
 
@@ -32,6 +34,13 @@ struct FileRenamingSettingsPage: View {
         Binding(
             get: { FolderModePreference(rawValue: folderModeRaw) ?? .default },
             set: { folderModeRaw = $0.rawValue }
+        )
+    }
+
+    private var folderRenameScope: Binding<FolderRenameScopePreference> {
+        Binding(
+            get: { FolderRenameScopePreference(rawValue: folderRenameScopeRaw) ?? .default },
+            set: { folderRenameScopeRaw = $0.rawValue }
         )
     }
 
@@ -80,48 +89,66 @@ struct FileRenamingSettingsPage: View {
     var body: some View {
         Form {
             Section("Hotkey") {
-                HotkeyRow(
-                    title: secondaryEnabled ? "Rename (non-recursive)" : "Global Shortcut",
-                    label: primaryHotkeyLabel,
-                    isRecording: $isRecordingPrimary,
-                    onNewShortcut: { keyCode, modifiers in
-                        HotkeyManager.shared.update(keyCode: keyCode, modifiers: modifiers)
-                        primaryHotkeyLabel = HotkeyManager.shared.currentShortcutLabel
+                Toggle("Enable rename hotkey", isOn: Binding(
+                    get: { hotkeyEnabled },
+                    set: { newValue in
+                        HotkeyManager.shared.setEnabled(newValue)
+                        hotkeyEnabled = newValue
                     }
-                )
+                ))
+                .toggleStyle(.switch)
 
-                LabeledContent {
-                    Toggle("", isOn: Binding(
-                        get: { secondaryEnabled },
-                        set: { newValue in
-                            HotkeyManager.shared.setSecondaryEnabled(newValue)
-                            secondaryEnabled = newValue
-                        }
-                    ))
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                } label: {
-                    HStack(spacing: 6) {
-                        Text("Use second hotkey for recursive rename")
-                        InfoPopover(
-                            title: "Two-hotkey mode",
-                            detail: "When enabled, the primary hotkey renames only the selection (folders are renamed by their own name; contents are left alone). The second hotkey renames recursively — folders and everything inside them. Neither prompts; the choice is the keystroke.",
-                            exampleBefore: nil,
-                            exampleAfter: nil
-                        )
-                    }
+                if !hotkeyEnabled {
+                    Text("The global shortcut is not claimed while this is off. Drop Targets can still be used independently.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
-                if secondaryEnabled {
+                if hotkeyEnabled {
                     HotkeyRow(
-                        title: "Rename (recursive)",
-                        label: secondaryHotkeyLabel,
-                        isRecording: $isRecordingSecondary,
+                        title: secondaryEnabled ? "Rename (non-recursive)" : "Global Shortcut",
+                        label: primaryHotkeyLabel,
+                        isRecording: $isRecordingPrimary,
                         onNewShortcut: { keyCode, modifiers in
-                            HotkeyManager.shared.updateSecondary(keyCode: keyCode, modifiers: modifiers)
-                            secondaryHotkeyLabel = HotkeyManager.shared.secondaryShortcutLabel
+                            HotkeyManager.shared.update(keyCode: keyCode, modifiers: modifiers)
+                            primaryHotkeyLabel = HotkeyManager.shared.currentShortcutLabel
                         }
                     )
+
+                    LabeledContent {
+                        Toggle("", isOn: Binding(
+                            get: { secondaryEnabled },
+                            set: { newValue in
+                                HotkeyManager.shared.setSecondaryEnabled(newValue)
+                                secondaryEnabled = newValue
+                            }
+                        ))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text("Use second hotkey for recursive rename")
+                            InfoPopover(
+                                title: "Two-hotkey mode",
+                                detail: "When enabled, the primary hotkey renames only the selection (folders are renamed by their own name; contents are left alone). The second hotkey renames recursively — folders and everything inside them. Neither prompts; the choice is the keystroke.",
+                                exampleBefore: nil,
+                                exampleAfter: nil
+                            )
+                        }
+                    }
+
+                    if secondaryEnabled {
+                        HotkeyRow(
+                            title: "Rename (recursive)",
+                            label: secondaryHotkeyLabel,
+                            isRecording: $isRecordingSecondary,
+                            onNewShortcut: { keyCode, modifiers in
+                                HotkeyManager.shared.updateSecondary(keyCode: keyCode, modifiers: modifiers)
+                                secondaryHotkeyLabel = HotkeyManager.shared.secondaryShortcutLabel
+                            }
+                        )
+                    }
                 }
             }
 
@@ -205,6 +232,25 @@ struct FileRenamingSettingsPage: View {
                                 : "Controls what happens when the Finder selection contains a folder. \"Ask\" prompts each time, \"folder only\" renames just the folder itself, \"recursively\" descends into the folder and renames every file and subfolder inside it. Hidden files (.DS_Store, dotfiles) are always skipped.",
                             exampleBefore: nil,
                             exampleAfter: nil
+                        )
+                    }
+                }
+
+                LabeledContent {
+                    Picker("", selection: folderRenameScope) {
+                        Text("Files only").tag(FolderRenameScopePreference.filesOnly)
+                        Text("Files and folders").tag(FolderRenameScopePreference.filesAndFolders)
+                        Text("Ask each time").tag(FolderRenameScopePreference.ask)
+                    }
+                    .labelsHidden()
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("Rename folder names")
+                        InfoPopover(
+                            title: "Folder rename scope",
+                            detail: "Decides whether folder *names* themselves are eligible for renaming when folders are involved (either in the selection or reached by recursive descent). \"Files only\" leaves every folder name untouched — useful when folders never need a date prefix. \"Files and folders\" applies the date prefix to folder names too. \"Ask\" prompts each time. This is independent of the recursive setting above: with files-only + recursive, the batch descends into folders and renames the files inside but leaves folder names alone.",
+                            exampleBefore: "Selection: \"Report.pdf\", \"2024 Invoices/\"",
+                            exampleAfter: "Renamed: \"2024-… Report.pdf\". Folder untouched."
                         )
                     }
                 }
@@ -384,16 +430,23 @@ struct FileRenamingSettingsPage: View {
                 }
             }
 
-            if permissions.finderAutomationStatus == .denied {
-                Section {
-                    HStack {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.yellow)
-                        Text("Finder automation permission denied.")
-                        Spacer()
-                        Button("Open Settings") {
-                            permissions.openSystemSettings()
-                        }
+            Section("Permissions") {
+                permissionRow(
+                    title: "Automation — Finder",
+                    detail: "Required. Used to read the current Finder selection when the hotkey fires and to perform the rename as Apple Events on Finder so it lands in Finder's native undo stack.",
+                    granted: permissions.finderAutomationStatus == .authorized
+                )
+
+                permissionRow(
+                    title: "Full Disk Access",
+                    detail: "Optional, but required when renaming files in protected locations (Desktop, Documents, Downloads, iCloud Drive, …). Without it those renames fail with a permission error from Finder.",
+                    granted: permissions.fullDiskAccessStatus == .authorized
+                )
+
+                HStack {
+                    Spacer()
+                    Button("Open Permissions…") {
+                        NotificationCenter.default.post(name: .openPermissionsSettingsPage, object: nil)
                     }
                 }
             }
@@ -401,6 +454,21 @@ struct FileRenamingSettingsPage: View {
         .formStyle(.grouped)
         .task {
             await permissions.checkPermission()
+        }
+    }
+
+    private func permissionRow(title: String, detail: String, granted: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: granted ? "checkmark.circle.fill" : "xmark.circle.fill")
+                .foregroundStyle(granted ? Color.green : Color.red)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
         }
     }
 }

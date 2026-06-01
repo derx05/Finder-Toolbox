@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import SwiftUI
 import Combine
 
@@ -34,6 +35,15 @@ final class AppController: ObservableObject {
     static let defaultRecursiveWarnThreshold = 50
 
     private init() {
+        // Must run before HotkeyManager.setup(): the released copy's global
+        // hotkey registration conflicts with the debug build's, which wedges
+        // the released app's main thread. AppDelegate.applicationDidFinishLaunching
+        // is too late — this init fires during App-struct StateObject creation,
+        // before any delegate method.
+        #if DEBUG
+        Self.terminateOtherInstances()
+        #endif
+
         HotkeyManager.shared.onFire = { [weak self] in
             Task { @MainActor in await self?.performRename() }
         }
@@ -41,7 +51,46 @@ final class AppController: ObservableObject {
             Task { @MainActor in await self?.performRename(forcedFolderMode: .recursive) }
         }
         HotkeyManager.shared.setup()
+
+        // Issue #29 drag-time drop targets. Off by default — gated by
+        // the `dropTargets.enabled` user default, settable on the
+        // dedicated Settings page. Observe defaults so toggling the
+        // switch in Settings starts/stops the coordinator live without
+        // requiring a restart.
+        DropTargetsCoordinator.shared.refreshFromDefaults()
+        NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            MainActor.assumeIsolated {
+                DropTargetsCoordinator.shared.refreshFromDefaults()
+            }
+        }
     }
+
+    #if DEBUG
+    /// Kill any already-running copy of Finder Toolbox so the debug build
+    /// doesn't fight it for the global hotkey. Uses `forceTerminate()` rather
+    /// than `terminate()` because the released copy may already be wedged by
+    /// the hotkey-registration conflict and would no longer respond to the
+    /// polite quit AppleEvent.
+    private static func terminateOtherInstances() {
+        guard let bundleID = Bundle.main.bundleIdentifier else { return }
+        let me = ProcessInfo.processInfo.processIdentifier
+        let others = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+            .filter { $0.processIdentifier != me }
+        for app in others {
+            app.forceTerminate()
+        }
+        // Give the OS a moment to reclaim the hotkey registration before
+        // HotkeyManager.setup() tries to claim it.
+        let deadline = Date().addingTimeInterval(2)
+        while others.contains(where: { !$0.isTerminated }) && Date() < deadline {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+        }
+    }
+    #endif
 
     /// Run a rename batch against Finder's current selection.
     ///
@@ -54,10 +103,13 @@ final class AppController: ObservableObject {
         defer { isRenaming = false }
 
         // Plan first so we can prompt with accurate counts before touching anything.
+        // Use .filesAndFolders here so `initialPlan.foldersInSelection` reflects
+        // every folder that *could* be renamed — the scope decision is resolved
+        // below and a replan applies the final filter.
         let initialMode: FolderMode = forcedFolderMode ?? .flat
         let initialPlan: RenameExecutor.Plan
         do {
-            initialPlan = try await executor.plan(folderMode: initialMode)
+            initialPlan = try await executor.plan(folderMode: initialMode, renameFolders: .filesAndFolders)
         } catch FinderBridgeError.noSelection {
             return
         } catch FinderBridgeError.automationDenied {
@@ -79,7 +131,7 @@ final class AppController: ObservableObject {
             // Two-hotkey mode: primary is fixed to non-recursive; the user
             // opted out of prompts by enabling the dedicated recursive hotkey.
             resolvedMode = .flat
-        } else if initialPlan.folderCount == 0 {
+        } else if initialPlan.foldersInSelection == 0 {
             resolvedMode = .flat  // No folders in selection → choice doesn't matter.
         } else {
             switch FolderModePreference.current() {
@@ -90,7 +142,7 @@ final class AppController: ObservableObject {
             case .ask:
                 let otherCount = initialPlan.renames.count - initialPlan.folderCount
                 switch FolderModeDialog.askFolderMode(
-                    folderCount: initialPlan.folderCount,
+                    folderCount: initialPlan.foldersInSelection,
                     otherCount: otherCount
                 ) {
                 case .flat:      resolvedMode = .flat
@@ -100,11 +152,40 @@ final class AppController: ObservableObject {
             }
         }
 
-        // Replan if recursion was chosen — the initial plan is flat-only.
+        // Resolve folder rename scope (do folder *names* get renamed?). Only
+        // relevant when folders are touched — for a pure file selection in
+        // flat mode there is nothing to ask about.
+        let resolvedScope: FolderRenameScope
+        let foldersWillBeTouched = initialPlan.foldersInSelection > 0
+        if !foldersWillBeTouched {
+            resolvedScope = .filesAndFolders  // No folders → choice is moot.
+        } else {
+            switch FolderRenameScopePreference.current() {
+            case .filesOnly:
+                resolvedScope = .filesOnly
+            case .filesAndFolders:
+                resolvedScope = .filesAndFolders
+            case .ask:
+                let fileCount = initialPlan.renames.count - initialPlan.folderCount
+                switch FolderModeDialog.askFolderRenameScope(
+                    folderCount: initialPlan.foldersInSelection,
+                    fileCount: fileCount
+                ) {
+                case .filesOnly:       resolvedScope = .filesOnly
+                case .filesAndFolders: resolvedScope = .filesAndFolders
+                case .cancel:          return
+                }
+            }
+        }
+
+        // Replan if recursion was chosen OR scope changed from the initial
+        // .filesAndFolders default — the initial plan is flat + folder-inclusive.
         let plan: RenameExecutor.Plan
-        if resolvedMode == .recursive && initialMode != .recursive {
+        let needsReplan = (resolvedMode == .recursive && initialMode != .recursive)
+            || resolvedScope == .filesOnly
+        if needsReplan {
             do {
-                plan = try await executor.plan(folderMode: .recursive)
+                plan = try await executor.plan(folderMode: resolvedMode, renameFolders: resolvedScope)
             } catch {
                 SummaryDialog.showIfNeeded(BatchSummary(outcomes: [
                     .failed(URL(fileURLWithPath: "/"), error: error.localizedDescription)
@@ -158,6 +239,60 @@ final class AppController: ObservableObject {
 
         if PermissionsManager.shared.finderAutomationStatus == .denied {
             SummaryDialog.showPermissionDenied()
+            return
+        }
+
+        lastBatch = summary.outcomes.compactMap { outcome in
+            if case .renamed(let from, let to) = outcome {
+                return RenameRecord(renamedURL: to, originalName: from.lastPathComponent)
+            }
+            return nil
+        }
+
+        SummaryDialog.showIfNeeded(summary)
+    }
+
+    /// Drop-target entry point. Routes drag-and-drop drops onto a Finder-window
+    /// overlay through the same naming + Finder Apple Events plumbing the
+    /// hotkey path uses, just with an explicit destination folder instead
+    /// of an in-place rename.
+    func performDrop(urls: [URL], into targetFolder: URL, operation: DropOperation) async {
+        guard !urls.isEmpty, !isRenaming else { return }
+        isRenaming = true
+        defer { isRenaming = false }
+
+        // Proactive TCC check: if the target folder is TCC-gated and we
+        // don't have Full Disk Access, the move via Finder Apple Events
+        // will fail after macOS shows a misleading "Finder wants to make
+        // changes" prompt (the OS attributes the request to Finder
+        // visually but checks our TCC context). Short-circuit before
+        // touching Finder so the user sees one clean dialog with a deep
+        // link instead of a confusing two-prompt loop.
+        if PermissionsManager.shared.isTCCGatedDestination(targetFolder),
+           !PermissionsManager.shared.hasFullDiskAccess() {
+            SummaryDialog.showFullDiskAccessRequired()
+            return
+        }
+
+        let summary = await executor.executeDrop(urls: urls, into: targetFolder, operation: operation)
+
+        if PermissionsManager.shared.finderAutomationStatus == .denied {
+            SummaryDialog.showPermissionDenied()
+            return
+        }
+
+        // Detect the FDA-on-destination denial. Surfaced via the failure
+        // message string because RenameOutcome.failed only carries a
+        // String, and the localized message starts with a sentinel
+        // produced by FinderBridgeError.destinationNotPermitted. Show the
+        // dedicated dialog (with the System Settings deep link) instead
+        // of the generic summary; if the move couldn't even reach Finder,
+        // the user needs the recovery path, not a per-file error list.
+        let fdaDenied = summary.failed.contains { _, error in
+            error.contains("Full Disk Access")
+        }
+        if fdaDenied {
+            SummaryDialog.showFullDiskAccessRequired()
             return
         }
 

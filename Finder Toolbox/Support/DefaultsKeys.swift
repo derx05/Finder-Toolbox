@@ -13,7 +13,11 @@ nonisolated enum DefaultsKeys {
     static let dockMode             = "app.dockMode"
     static let menuBarShowIcon      = "menuBar.showIcon"
 
-    // Hotkey
+    // Hotkey. `hotkeyEnabled` is the master switch: when false, neither
+    // primary nor secondary hotkey is registered. Users who only want
+    // the drag-time drop targets can disable the hotkey for efficiency
+    // and to avoid claiming a global shortcut.
+    static let hotkeyEnabled        = "hk.enabled"
     static let hotkeyKeyCode        = "hk.keyCode"
     static let hotkeyModifiers      = "hk.modifiers"
 
@@ -51,11 +55,25 @@ nonisolated enum DefaultsKeys {
     // Folders. `folderMode` raw values come from `FolderModePreference.rawValue`.
     // `recursiveWarnThreshold` is the file count above which recursive batches require explicit confirmation.
     static let folderMode               = "folders.mode"
+    // `folderRenameScope` raw values come from `FolderRenameScopePreference.rawValue`.
+    // Decides whether folder *names* themselves are eligible for renaming
+    // when folders are involved (either in the selection or reached via
+    // recursive descent). Orthogonal to `folderMode`: scope decides whether
+    // folders are renamed, mode decides whether we descend into them.
+    // Defaults to files-only — folders normally don't carry a meaningful date.
+    static let folderRenameScope        = "folders.renameScope"
     // When false, recursive batches skip the size-threshold confirmation
     // dialog entirely. Risky — exists so power users who know what they're
     // doing can avoid the prompt without setting an absurdly high threshold.
     static let recursiveWarnEnabled     = "folders.recursiveWarnEnabled"
     static let recursiveWarnThreshold   = "folders.recursiveWarnThreshold"
+
+    // Drag-time drop targets (issue #29). Off by default — opt-in via Settings.
+    static let dropTargetsEnabled       = "dropTargets.enabled"
+    // Hover gating: only show a window's overlay while the cursor is over
+    // that Finder window (and the window isn't occluded at the cursor).
+    // Cuts visual noise when many Finder windows are open.
+    static let dropTargetsHoverGated    = "dropTargets.hoverGated"
 
     // Updates. `updatesChannel` raw values come from `UpdateChannel.rawValue`;
     // `updatesAutoCheck` / `updatesAutoDownload` mirror Sparkle's
@@ -76,11 +94,13 @@ nonisolated enum DefaultsKeys {
     /// of what the Settings UI displays as the default.
     nonisolated static func registerInitialDefaults() {
         UserDefaults.standard.register(defaults: [
+            hotkeyEnabled:              true,
             emlUseDateHeader:           true,
             dateFormatStyle:            "system", // DateFormatStyle.default
             datePriority:               "content", // DatePriority.default
             dateAmbiguityOrder:         "dayFirst", // DateAmbiguityOrder.default
             recursiveWarnEnabled:       true,
+            folderRenameScope:          "filesOnly", // FolderRenameScopePreference.default
             pdfUseContentDate:          true,
             pdfConflictBehavior:        "ask",   // PdfConflictBehavior.default
             pdfNoDateBehavior:          "ask",   // PdfNoDateBehavior.default

@@ -52,8 +52,10 @@ struct AboutPage: View {
                                 .padding(.top, 4)
                         }
                     }
+
+                    Spacer(minLength: 0)
                 }
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 28)
 
                 Picker("Update channel", selection: channelBinding) {
@@ -66,7 +68,7 @@ struct AboutPage: View {
                 Toggle("Automatically check for updates", isOn: $autoCheck)
                     .toggleStyle(.switch)
 
-                Toggle("Automatically download updates", isOn: $autoDownload)
+                Toggle("Automatically download and install updates", isOn: $autoDownload)
                     .toggleStyle(.switch)
                     .disabled(!autoCheck)
 

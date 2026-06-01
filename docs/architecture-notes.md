@@ -29,7 +29,7 @@ Both work. The difference is **undo integration**.
 
 The user explicitly named undo as a must-have, with the observation that "how do you want the user to focus an app that runs headless?" Routing through Finder is the answer.
 
-**Batch-undo grouping (validated in v1):** when sending Finder a batch of N renames, we wrap the whole batch in a single AppleScript `tell application "Finder" … end tell` block executed via `NSAppleScript` once. Finder coalesces these into a single undo entry for the batch, so ⌘Z in Finder reverses the whole operation. The fallback options — accepting N undo steps, or maintaining our own "Undo last batch" log — were left unbuilt and remain available if Finder's grouping behavior ever regresses.
+**Batch-undo grouping (validated in the shipped renamer):** when sending Finder a batch of N renames, we wrap the whole batch in a single AppleScript `tell application "Finder" … end tell` block executed via `NSAppleScript` once. Finder coalesces these into a single undo entry for the batch, so ⌘Z in Finder reverses the whole operation. The fallback options — accepting N undo steps, or maintaining our own "Undo last batch" log — were left unbuilt and remain available if Finder's grouping behavior ever regresses.
 
 ---
 
@@ -77,7 +77,7 @@ PDFs need a layered extractor, not a single source. `PdfDateExtractor.swift` tri
 What's deliberately *not* in the chain:
 
 - **No file-system creation/modification date.** Same reasoning as `.eml`: an old document re-saved or copied yesterday would get yesterday's date, which is worse than admitting we don't know.
-- **No Apple Intelligence / Foundation Models pass yet.** Scoped as a v1.x follow-up, gated by `#available(macOS 26.0, *)` since it requires macOS 26+.
+- **No Apple Intelligence / Foundation Models pass yet.** Scoped as a planned follow-up, gated by `#available(macOS 26.0, *)` since it requires macOS 26+.
 
 Conflicts between sources (e.g. metadata says one date, body text says another) and missing-date cases are exposed in Settings as ask-vs-silent toggles, so the feature can run hands-off for bulk filing or interactively for one-offs. The filename-vs-content priority setting decides whether a date already present in the filename overrides what the extractor finds.
 

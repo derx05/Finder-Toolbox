@@ -38,6 +38,29 @@ enum SummaryDialog {
         alert.runModal()
     }
 
+    /// Shown when a drop-targets move was denied by TCC on the destination
+    /// path. Distinct from `showPermissionDenied()` (Automation): the user
+    /// has already granted Automation; what's missing is Full Disk Access
+    /// (or a per-folder Files & Folders grant) for the AppleScript caller.
+    static func showFullDiskAccessRequired() {
+        let alert = NSAlert()
+        alert.messageText = "Full Disk Access Required"
+        alert.informativeText = """
+            The destination folder is protected by macOS. Finder Toolbox needs Full Disk Access to move files into it.
+
+            Open System Settings → Privacy & Security → Full Disk Access and enable Finder Toolbox, then try the drop again.
+
+            (In-place renames via the hotkey continue to work without this permission.)
+            """
+        alert.alertStyle = .critical
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Cancel")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            PermissionsManager.shared.openSystemSettingsForFullDiskAccess()
+        }
+    }
+
     // Shown when Automation permission for Finder has been denied.
     static func showPermissionDenied() {
         let alert = NSAlert()

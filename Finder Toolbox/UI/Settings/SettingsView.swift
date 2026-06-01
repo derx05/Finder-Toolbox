@@ -5,6 +5,9 @@ import AppKit
 enum SettingsPage: Hashable {
     case general
     case fileRenaming
+    case dropTargets
+    case permissions
+    case advanced
     case about
 }
 
@@ -33,6 +36,18 @@ struct SettingsView: View {
                 FileRenamingSettingsPage()
                     .navigationTitle("")
                     .toolbar(.hidden)
+            case .dropTargets:
+                DropTargetsSettingsPage()
+                    .navigationTitle("")
+                    .toolbar(.hidden)
+            case .permissions:
+                PermissionsSettingsPage()
+                    .navigationTitle("")
+                    .toolbar(.hidden)
+            case .advanced:
+                AdvancedSettingsPage()
+                    .navigationTitle("")
+                    .toolbar(.hidden)
             case .about:
                 AboutPage()
                     .navigationTitle("")
@@ -40,10 +55,16 @@ struct SettingsView: View {
             }
         }
         .navigationSplitViewStyle(.prominentDetail)
-        .frame(minWidth: 620, minHeight: 400)
+        // ~2x the original 620×400 default. The Permissions and PDF
+        // pages are dense enough that the old window forced lots of
+        // scrolling; users were resizing every time.
+        .frame(minWidth: 1220, minHeight: 780)
         .onAppear { columnVisibility = .all }
         .onChange(of: columnVisibility) { columnVisibility = .all }
         .background(ResizableWindowAccessor())
+        .onReceive(NotificationCenter.default.publisher(for: .openPermissionsSettingsPage)) { _ in
+            selection = .permissions
+        }
         .onDisappear {
             DockModeManager.shared.settingsDidClose()
         }
@@ -73,13 +94,22 @@ private struct SettingsSidebar: View {
                 Label("General", systemImage: "gearshape")
             }
 
-            Section("Features") {
+            Section("File Renaming") {
                 NavigationLink(value: SettingsPage.fileRenaming) {
-                    Label("File Renaming", systemImage: "pencil.and.outline")
+                    Label("General", systemImage: "pencil.and.outline")
+                }
+                NavigationLink(value: SettingsPage.dropTargets) {
+                    Label("Drop Targets", systemImage: "square.and.arrow.down.on.square")
                 }
             }
 
-            Section("Other") {
+            Section("System") {
+                NavigationLink(value: SettingsPage.permissions) {
+                    Label("Permissions", systemImage: "lock.shield")
+                }
+                NavigationLink(value: SettingsPage.advanced) {
+                    Label("Storage", systemImage: "internaldrive")
+                }
                 NavigationLink(value: SettingsPage.about) {
                     Label("About", systemImage: "info.circle")
                 }

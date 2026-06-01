@@ -1,14 +1,14 @@
 # Roadmap
 
-Versioned plan for Finder Toolbox.
+The plan for Finder Toolbox. Three buckets, no fixed version slots — features ship when they're ready.
 
-- **v1 — Shipped** is what's in `dev` and headed out the next beta.
-- **v1.x — Near-term polish** are small, well-scoped follow-ups that fit the existing surface.
-- **Future** is everything bigger — reorder freely; promote into v1.x once a concrete design exists.
+- **Released** — what's shipped and in users' hands.
+- **Planned** — features with a concrete design or imminent start.
+- **Future** — bigger ideas without a fixed slot; reorder freely, promote into **Planned** once a concrete design exists.
 
 ---
 
-## v1 — Shipped
+## Released
 
 The product target: a hotkey-driven smart file renamer that Daniel uses daily. Reached, then extended.
 
@@ -41,10 +41,11 @@ The product target: a hotkey-driven smart file renamer that Daniel uses daily. R
 
 ---
 
-## v1.x — Near-term polish
+## Planned
 
-Small, well-scoped follow-ups that fit the existing surface. Pick off as time permits; none of these block a release.
+Features with a concrete design or that I'm about to start. Pick off as time permits; none block a release.
 
+- **Drag-time rename drop targets over Finder windows** ([#29](https://github.com/derx05/Finder-Toolbox/issues/29)). Opt-in alternative front-end onto the rename pipeline: when a file drag is detected, small overlays appear anchored to each visible Finder window; dropping onto one renames and places the file in that window's folder. Detailed design in the issue.
 - **Image EXIF date extraction.** `DateTimeOriginal` via `ImageIO` / `CGImageSource`. Natural sibling to the PDF and `.eml` extractors.
 - **Configurable separator** between date and name (currently fixed to a literal space).
 - **Filename cleanup pass.** Trim trailing whitespace before extension; strip ` (1)`, ` copy`, ` copy 2`; NFC-normalize; collapse double spaces. Opt-in — some users want the filename preserved verbatim.
@@ -55,7 +56,7 @@ Small, well-scoped follow-ups that fit the existing surface. Pick off as time pe
 
 ## Future
 
-Bigger shape changes. Each gets a real design pass before code. Reorder as priorities reveal themselves.
+Bigger shape changes. Each gets a real design pass before code. Reorder as priorities reveal themselves; promote into **Planned** when a concrete design exists.
 
 ### Smart rename surface
 - **Preview-before-commit panel** — toggleable per invocation (e.g. ⇧+hotkey for preview).

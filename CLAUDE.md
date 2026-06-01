@@ -10,10 +10,10 @@ The first feature is a **hotkey-driven smart file renamer**: press a global hotk
 
 For the full product context, read in this order:
 1. **`CONCEPT.md`** — what this is, who it's for, why these design choices.
-2. **`ROADMAP.md`** — versioned feature plan (v1 prototype → v4+ toolbox expansion).
+2. **`ROADMAP.md`** — released / planned / future features. No fixed version slots; features ship when ready.
 3. **`docs/architecture-notes.md`** — load-bearing technical decisions and their rationale (App Store rejection, Apple Events vs `NSFileManager`, hotkey library, FSEvents, etc.). Read this before touching the rename pipeline.
 
-v1 is shipped (1.0.0 Beta). Source lives under `Finder Toolbox/` in feature-named folders (`App/`, `Rename/`, `FinderBridge/`, `Hotkey/`, `UI/`, `UI/Settings/`, `Permissions/`, `Support/`). The renamer is end-to-end functional, including `.eml` `Date:` header extraction (originally a v2 item) and a folder-rename mode dialog (recursive / ask / two-hotkey). Local builds and archives live in `builds/` (gitignored).
+1.0.0 Beta is shipped. Source lives under `Finder Toolbox/` in feature-named folders (`App/`, `Rename/`, `FinderBridge/`, `Hotkey/`, `UI/`, `UI/Settings/`, `Permissions/`, `Support/`). The renamer is end-to-end functional, including `.eml` `Date:` header extraction (originally planned for later) and a folder-rename mode dialog (recursive / ask / two-hotkey). Local builds and archives live in `builds/` (gitignored).
 
 ## Build / Run
 
