@@ -18,6 +18,15 @@ final class DropTargetsCoordinator {
 
     private var panels: [DropOverlayPanel] = []
 
+    /// Drag-time context, set on drag-start and cleared on drag-end.
+    /// Used to keep every overlay's icon + tint in sync with the
+    /// currently-intended operation, even for panels the cursor hasn't
+    /// entered yet.
+    private var dragSourceURLs: [URL] = []
+    private var dragPromiseOnly: Bool = false
+    private var modifierMonitorGlobal: Any?
+    private var modifierMonitorLocal: Any?
+
     /// Long-lived map of Finder window IDs to their target folder + name.
     /// AppleEvents to Finder cost ~1–3s on a cold call, but the data is
     /// stable across Space switches (window IDs don't change when you
@@ -94,6 +103,13 @@ final class DropTargetsCoordinator {
     }
 
     private func handleDragStarted() {
+        // Snapshot the drag pasteboard once at drag-start so every panel
+        // can be primed with the right operation immediately — and so
+        // we don't re-read on every modifier-key tick.
+        let info = readDragSourceInfo()
+        dragSourceURLs = info.urls
+        dragPromiseOnly = info.promiseOnly
+
         // Fast path: synchronous CGWindowList + cached folder map. Works
         // immediately after a Space switch because window IDs are stable.
         let cgWindows = FinderWindowSnapshot.currentVisibleFinderWindows()
@@ -112,13 +128,71 @@ final class DropTargetsCoordinator {
             return
         }
         showPanels(for: windows)
+        refreshAllPanelOperations()
+        startModifierMonitor()
     }
 
     private func handleDragEnded() {
+        stopModifierMonitor()
         hidePanels()
+        dragSourceURLs = []
+        dragPromiseOnly = false
         // Catch any Finder windows the user opened during/around the
         // drag so their IDs land in the folder map.
         refreshFolderMap()
+    }
+
+    /// Read the drag pasteboard once at drag-start. Returns the file
+    /// URLs (used for source-volume detection) and whether the drag is
+    /// promise-only (Mail / Photos / Safari — must always copy).
+    private func readDragSourceInfo() -> (urls: [URL], promiseOnly: Bool) {
+        let pb = NSPasteboard(name: .drag)
+        let types = pb.types ?? []
+        let hasLegacyPromise = types.contains { t in
+            let raw = t.rawValue
+            return raw == "Apple files promise pasteboard type" || raw == "NSPromiseContentsPboardType"
+        }
+        let promiseSet = Set(NSFilePromiseReceiver.readableDraggedTypes)
+        let hasModernPromise = types.contains { promiseSet.contains($0.rawValue) }
+        let promiseOnly = hasLegacyPromise || hasModernPromise
+        let urls = (pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL]) ?? []
+        return (urls, promiseOnly)
+    }
+
+    /// Re-evaluate the current operation for every visible overlay.
+    /// Each panel's target folder volume + the held modifiers may
+    /// produce a different answer per window — Desktop → NAS is copy
+    /// while Desktop → Desktop is move, for example.
+    private func refreshAllPanelOperations() {
+        for panel in panels {
+            guard let view = panel.contentView as? DropOverlayView else { continue }
+            view.reflectOperation(sourceURLs: dragSourceURLs, promiseOnly: dragPromiseOnly)
+        }
+    }
+
+    /// While a drag is active, watch for modifier-flag changes (⌥, ⌘)
+    /// and re-tint every panel. Global monitor catches the usual case
+    /// (Finder is frontmost during the drag); local monitor covers the
+    /// rare case where our own app is frontmost.
+    private func startModifierMonitor() {
+        if modifierMonitorGlobal == nil {
+            modifierMonitorGlobal = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] _ in
+                MainActor.assumeIsolated { self?.refreshAllPanelOperations() }
+            }
+        }
+        if modifierMonitorLocal == nil {
+            modifierMonitorLocal = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+                MainActor.assumeIsolated { self?.refreshAllPanelOperations() }
+                return event
+            }
+        }
+    }
+
+    private func stopModifierMonitor() {
+        if let modifierMonitorGlobal { NSEvent.removeMonitor(modifierMonitorGlobal) }
+        if let modifierMonitorLocal { NSEvent.removeMonitor(modifierMonitorLocal) }
+        modifierMonitorGlobal = nil
+        modifierMonitorLocal = nil
     }
 
     private func refreshFolderMap() {
@@ -145,12 +219,12 @@ final class DropTargetsCoordinator {
         for window in windows {
             let panel = DropOverlayPanel(target: window)
             log.info("  panel for \"\(window.title, privacy: .public)\" placed at \(NSStringFromRect(panel.frame), privacy: .public)")
-            (panel.contentView as? DropOverlayView)?.onDrop = { [weak self] urls, tempDir in
+            (panel.contentView as? DropOverlayView)?.onDrop = { [weak self] urls, tempDir, operation in
                 guard let self else { return }
-                self.log.info("drop accepted: \(urls.count, privacy: .public) file(s) → \(window.targetFolder.path, privacy: .public)")
+                self.log.info("drop accepted: \(urls.count, privacy: .public) file(s) → \(window.targetFolder.path, privacy: .public) op=\(String(describing: operation), privacy: .public)")
                 let targetFolder = window.targetFolder
                 Task { @MainActor in
-                    await AppController.shared.performDrop(urls: urls, into: targetFolder)
+                    await AppController.shared.performDrop(urls: urls, into: targetFolder, operation: operation)
                     // Cleanup: the materialize-to-temp dir is now empty
                     // (Finder moved the files out). Best-effort removal —
                     // a leftover directory under /var/folders is harmless

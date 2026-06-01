@@ -224,7 +224,7 @@ final class AppController: ObservableObject {
     /// overlay through the same naming + Finder Apple Events plumbing the
     /// hotkey path uses, just with an explicit destination folder instead
     /// of an in-place rename.
-    func performDrop(urls: [URL], into targetFolder: URL) async {
+    func performDrop(urls: [URL], into targetFolder: URL, operation: DropOperation) async {
         guard !urls.isEmpty, !isRenaming else { return }
         isRenaming = true
         defer { isRenaming = false }
@@ -242,7 +242,7 @@ final class AppController: ObservableObject {
             return
         }
 
-        let summary = await executor.executeDrop(urls: urls, into: targetFolder)
+        let summary = await executor.executeDrop(urls: urls, into: targetFolder, operation: operation)
 
         if PermissionsManager.shared.finderAutomationStatus == .denied {
             SummaryDialog.showPermissionDenied()

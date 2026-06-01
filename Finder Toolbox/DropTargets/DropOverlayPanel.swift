@@ -43,7 +43,10 @@ final class DropOverlayPanel: NSPanel {
         // than as an alien HUD.
         appearance = NSApp.effectiveAppearance
 
-        let view = DropOverlayView(folderName: target.targetFolder.lastPathComponent)
+        let view = DropOverlayView(
+            folderName: target.targetFolder.lastPathComponent,
+            targetFolder: target.targetFolder
+        )
         contentView = view
     }
 

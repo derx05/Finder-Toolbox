@@ -80,13 +80,15 @@ actor RenameExecutor {
     /// dialog mid-drag would be jarring — the drop UI is supposed to be
     /// a fast alternative path, not a modal one. A future enhancement
     /// could surface decisions in the end-of-drop summary instead.
-    func executeDrop(urls: [URL], into targetFolder: URL) async -> BatchSummary {
+    func executeDrop(urls: [URL], into targetFolder: URL, operation: DropOperation) async -> BatchSummary {
         guard !urls.isEmpty else { return BatchSummary(outcomes: []) }
 
-        // Items whose source parent already equals the target folder are
-        // routed to a rename-only path. Finder's `move … to folder …`
-        // verb to the same folder is at best a no-op and at worst — on
-        // SMB volumes — fails outright with "operation can't be completed".
+        // For .move, items whose source parent already equals the target
+        // folder are routed to a rename-only path. Finder's `move … to
+        // folder …` verb to the same folder is at best a no-op and at
+        // worst — on SMB volumes — fails outright with "operation can't
+        // be completed". For .copy we always go through the cross-folder
+        // path (a same-folder copy still has to duplicate the file).
         var sameFolderRenames: [(from: URL, to: String)] = []
         var crossFolderItems: [(source: URL, targetFolder: URL, newName: String)] = []
         var claimedInTarget: Set<String> = []
@@ -102,13 +104,13 @@ actor RenameExecutor {
             )
 
             let inSameFolder = url.deletingLastPathComponent().path == targetFolder.path
-            if inSameFolder, url.lastPathComponent == resolved {
+            if operation == .move, inSameFolder, url.lastPathComponent == resolved {
                 outcomes.append(.skipped(url, reason: .alreadyCanonical))
                 continue
             }
 
             claimedInTarget.insert(resolved)
-            if inSameFolder {
+            if operation == .move, inSameFolder {
                 sameFolderRenames.append((from: url, to: resolved))
             } else {
                 crossFolderItems.append((source: url, targetFolder: targetFolder, newName: resolved))
@@ -119,7 +121,12 @@ actor RenameExecutor {
             outcomes.append(contentsOf: await bridge.batchRename(sameFolderRenames))
         }
         if !crossFolderItems.isEmpty {
-            outcomes.append(contentsOf: await bridge.moveAndRename(crossFolderItems))
+            switch operation {
+            case .move:
+                outcomes.append(contentsOf: await bridge.moveAndRename(crossFolderItems))
+            case .copy:
+                outcomes.append(contentsOf: await bridge.copyAndRename(crossFolderItems))
+            }
         }
         return BatchSummary(outcomes: outcomes)
     }

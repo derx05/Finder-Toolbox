@@ -8,17 +8,19 @@ import OSLog
 final class DropOverlayView: NSView {
 
     let folderName: String
+    let targetFolder: URL
 
-    /// Called from `performDragOperation` with the resolved file URLs.
-    /// Promised files have already been materialized into `tempDir` before
-    /// this fires; plain file URLs come through as-is.
+    /// Called from `performDragOperation` with the resolved file URLs and
+    /// the operation (move vs copy) the user requested via modifier keys
+    /// + volume rules. Promised files have already been materialized into
+    /// `tempDir` before this fires; plain file URLs come through as-is.
     ///
     /// `tempDir` is non-nil iff at least one promise was materialized.
     /// The receiver is responsible for cleaning it up *after* the rename
     /// pipeline has moved the files out — the temp dir lives under
     /// `NSTemporaryDirectory()` (`/var/folders/.../T/`), not the project
     /// folder, so a missed cleanup leaves an empty dir at most.
-    var onDrop: ((_ urls: [URL], _ tempDir: URL?) -> Void)?
+    var onDrop: ((_ urls: [URL], _ tempDir: URL?, _ operation: DropOperation) -> Void)?
 
     private let log = Logger(subsystem: "danielammann.Finder-Toolbox", category: "drop-targets")
     private let backdrop = NSVisualEffectView()
@@ -27,8 +29,14 @@ final class DropOverlayView: NSView {
     private let titleLabel = NSTextField(labelWithString: "File Renamer")
     private let folderLabel = NSTextField(labelWithString: "")
 
-    init(folderName: String) {
+    /// Operation currently being advertised to the dragging system (drives
+    /// cursor decoration + overlay tint). Recomputed on every
+    /// `draggingEntered` / `draggingUpdated`.
+    private var currentOperation: DropOperation = .move
+
+    init(folderName: String, targetFolder: URL) {
         self.folderName = folderName
+        self.targetFolder = targetFolder
         super.init(frame: .zero)
 
         wantsLayer = true
@@ -48,17 +56,24 @@ final class DropOverlayView: NSView {
         addSubview(backdrop)
 
         // Tint layer for the drag-enter highlight (sits on top of the
-        // backdrop, below the labels).
-        highlightLayer.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.18).cgColor
+        // backdrop, below the labels). Color is updated per-operation.
+        highlightLayer.backgroundColor = currentOperation.tintColor.withAlphaComponent(0.18).cgColor
         highlightLayer.opacity = 0
         layer?.addSublayer(highlightLayer)
 
-        let arrow = NSImage(systemSymbolName: "arrow.down.to.line", accessibilityDescription: nil)
+        let arrow = NSImage(systemSymbolName: currentOperation.iconSymbolName, accessibilityDescription: nil)
         iconView.image = arrow
         iconView.symbolConfiguration = .init(pointSize: 22, weight: .semibold)
-        iconView.contentTintColor = .controlAccentColor
+        iconView.contentTintColor = currentOperation.tintColor
         iconView.translatesAutoresizingMaskIntoConstraints = false
         iconView.wantsLayer = true
+        // NSImageView auto-registers for image / file-URL drags via its
+        // editable cell — strip that so the drag protocol sees only the
+        // parent's registration, otherwise the system routes the drag to
+        // this subview (which has no `onDrop` hooked up), and the cursor
+        // shows "no drop" while hovering over the symbol.
+        iconView.isEditable = false
+        iconView.unregisterDraggedTypes()
 
         titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
         titleLabel.textColor = .labelColor
@@ -118,10 +133,108 @@ final class DropOverlayView: NSView {
         highlightLayer.frame = bounds
     }
 
+    // Treat the whole panel as a single drag destination. Without this,
+    // hit-testing lands on the icon or label subviews when the cursor
+    // sits on top of them — neither is registered for dragged types, so
+    // the system reports "no destination here", the green plus
+    // disappears, and the drop is refused mid-panel.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let local = convert(point, from: superview)
+        return bounds.contains(local) ? self : nil
+    }
+
     override func updateLayer() {
         super.updateLayer()
         // Border color must be refreshed when appearance flips (light/dark).
         layer?.borderColor = NSColor.separatorColor.cgColor
+    }
+
+    /// Decide whether the pasteboard represents a plain Finder file-URL
+    /// drag (we can safely honor move) or a promise / library-backed
+    /// source (Mail, Photos, Safari — we must always copy). Promise
+    /// sources never own a real on-disk file we're allowed to relocate.
+    private static func canHonorMove(for pasteboard: NSPasteboard) -> Bool {
+        let types = pasteboard.types ?? []
+        let hasLegacyPromise = types.contains { t in
+            let raw = t.rawValue
+            return raw == "Apple files promise pasteboard type" || raw == "NSPromiseContentsPboardType"
+        }
+        if hasLegacyPromise { return false }
+        let promiseTypes = Set(NSFilePromiseReceiver.readableDraggedTypes)
+        if types.contains(where: { promiseTypes.contains($0.rawValue) }) { return false }
+        let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL]
+        return !(urls ?? []).isEmpty
+    }
+
+    /// Volume URL for a path, or `nil` if it can't be resolved.
+    private static func volumeURL(for url: URL) -> URL? {
+        (try? url.resourceValues(forKeys: [.volumeURLKey]))?.volume
+    }
+
+    /// Pure decision function: given the source URLs and whether the
+    /// pasteboard is promise-only, return the operation the user is
+    /// asking for. Mirrors Finder's rules:
+    ///   - same volume → move by default, Option = copy
+    ///   - cross volume → copy by default, Command = move
+    ///   - promise / library sources → always copy
+    func computeOperation(sourceURLs: [URL], promiseOnly: Bool) -> DropOperation {
+        if promiseOnly { return .copy }
+        let targetVolume = Self.volumeURL(for: targetFolder)
+        let sameVolume: Bool = !sourceURLs.isEmpty && sourceURLs.allSatisfy { url in
+            guard let v = Self.volumeURL(for: url), let t = targetVolume else { return false }
+            return v == t
+        }
+        let modifiers = NSEvent.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let optionHeld = modifiers.contains(.option)
+        let commandHeld = modifiers.contains(.command)
+        let wantsMove: Bool = sameVolume ? !optionHeld : commandHeld
+        return wantsMove ? .move : .copy
+    }
+
+    /// Set the overlay's icon + tint based on what the drag currently
+    /// represents. Called by the coordinator at drag-start and on every
+    /// modifier-flags change so the panel reflects the right operation
+    /// before the cursor ever enters it.
+    func reflectOperation(sourceURLs: [URL], promiseOnly: Bool) {
+        applyOperation(computeOperation(sourceURLs: sourceURLs, promiseOnly: promiseOnly))
+    }
+
+    /// Compute the operation actually accepted from the drag pipeline,
+    /// gated on what the source advertises in its operation mask.
+    /// AppKit modulates the source's external mask based on the held
+    /// modifier (⌘ → `.generic`, ⌥ → `.copy`), so a ⌘ cross-volume drag
+    /// from Finder hands us a mask that does NOT advertise `.move` even
+    /// though Finder happily supports it. Treat `.generic` as
+    /// "destination decides" and trust our own computed intent.
+    private func desiredOperation(_ sender: NSDraggingInfo) -> (DropOperation, NSDragOperation) {
+        let sourceMask = sender.draggingSourceOperationMask
+        let pb = sender.draggingPasteboard
+
+        guard Self.canHonorMove(for: pb) else {
+            return (.copy, sourceMask.contains(.copy) ? .copy : [])
+        }
+
+        let sourceURLs = (pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL]) ?? []
+        let op = computeOperation(sourceURLs: sourceURLs, promiseOnly: false)
+
+        guard !sourceMask.isEmpty else { return (.copy, []) }
+        let allowsMove = sourceMask.contains(.move) || sourceMask.contains(.generic)
+        let allowsCopy = sourceMask.contains(.copy) || sourceMask.contains(.generic)
+
+        if op == .move, allowsMove { return (.move, .move) }
+        if allowsCopy { return (.copy, .copy) }
+        if allowsMove { return (.move, .move) }
+        return (.copy, [])
+    }
+
+    /// Swap the icon + tint to match the active operation. Cheap to call
+    /// every `draggingUpdated`; bails early when nothing changed.
+    private func applyOperation(_ op: DropOperation) {
+        guard op != currentOperation else { return }
+        currentOperation = op
+        iconView.image = NSImage(systemSymbolName: op.iconSymbolName, accessibilityDescription: nil)
+        iconView.contentTintColor = op.tintColor
+        highlightLayer.backgroundColor = op.tintColor.withAlphaComponent(0.18).cgColor
     }
 
     private func setHighlighted(_ on: Bool) {
@@ -191,28 +304,41 @@ final class DropOverlayView: NSView {
         let mouseInScreen = NSEvent.mouseLocation
         let panelFrame = window?.frame ?? .zero
         let types = sender.draggingPasteboard.types?.map(\.rawValue).joined(separator: ", ") ?? "<none>"
-        log.info("draggingEntered[\(self.folderName, privacy: .public)] mouseAt=\(NSStringFromPoint(mouseInScreen), privacy: .public) panelFrame=\(NSStringFromRect(panelFrame), privacy: .public) sourceMask=\(sourceMask.rawValue, privacy: .public) types=[\(types, privacy: .public)]")
-        setHighlighted(true)
-        // Never accept anything but .copy. Returning .generic or .move
-        // from a promise source (Photos, Mail) makes the source treat
-        // the destination as the new owner of the file — Photos will
-        // move the original asset out of its library bundle, corrupting
-        // the library; Mail can do the same to the message store.
-        // Better to refuse a drag than to shred someone's data.
-        guard sourceMask.contains(.copy) else {
-            log.info("dropOverlay[\(self.folderName, privacy: .public)]: source did not offer .copy (mask=\(sourceMask.rawValue, privacy: .public)) — declining drag")
+        let (op, accepted) = desiredOperation(sender)
+        log.info("draggingEntered[\(self.folderName, privacy: .public)] mouseAt=\(NSStringFromPoint(mouseInScreen), privacy: .public) panelFrame=\(NSStringFromRect(panelFrame), privacy: .public) sourceMask=\(sourceMask.rawValue, privacy: .public) op=\(String(describing: op), privacy: .public) types=[\(types, privacy: .public)]")
+        if accepted.isEmpty {
+            log.info("dropOverlay[\(self.folderName, privacy: .public)]: source declined both copy and move (mask=\(sourceMask.rawValue, privacy: .public)) — refusing drag")
             return []
         }
-        return .copy
+        // Defer the visual side effects: the first hover into a fresh
+        // panel kicks off CALayer animations (conveyor + pulse) and an
+        // icon/tint swap, and running those synchronously before
+        // returning blocks AppKit from updating the cursor badge — the
+        // green plus would briefly disappear until the user nudged the
+        // cursor again. Returning first lets AppKit decorate immediately;
+        // the animations land on the next runloop tick.
+        DispatchQueue.main.async { [weak self] in
+            self?.applyOperation(op)
+            self?.setHighlighted(true)
+        }
+        return accepted
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        return sender.draggingSourceOperationMask.contains(.copy) ? .copy : []
+        let (op, accepted) = desiredOperation(sender)
+        if !accepted.isEmpty {
+            DispatchQueue.main.async { [weak self] in
+                self?.applyOperation(op)
+            }
+        }
+        return accepted
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
         log.debug("draggingExited[\(self.folderName, privacy: .public)]")
-        setHighlighted(false)
+        DispatchQueue.main.async { [weak self] in
+            self?.setHighlighted(false)
+        }
     }
 
     override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
@@ -223,6 +349,7 @@ final class DropOverlayView: NSView {
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         setHighlighted(false)
 
+        let (operation, _) = desiredOperation(sender)
         let pb = sender.draggingPasteboard
 
         // Mail.app is handled out-of-band: its file-promise contract
@@ -283,7 +410,7 @@ final class DropOverlayView: NSView {
                 fileURLs.append(contentsOf: urls)
             }
             log.info("dropOverlay[\(self.folderName, privacy: .public)]: drop resolved \(fileURLs.count, privacy: .public) file URL(s)")
-            if !fileURLs.isEmpty { onDrop?(fileURLs, nil) }
+            if !fileURLs.isEmpty { onDrop?(fileURLs, nil, operation) }
             return !fileURLs.isEmpty
         }
 
@@ -323,7 +450,7 @@ final class DropOverlayView: NSView {
                         try? FileManager.default.removeItem(at: dir)
                         return
                     }
-                    onDrop?(urls, dir)
+                    onDrop?(urls, dir, .copy)
                 }
             } catch {
                 log.error("dropOverlay[\(folderName, privacy: .public)]: Mail bridge failed: \(error.localizedDescription, privacy: .public)")
@@ -406,7 +533,7 @@ final class DropOverlayView: NSView {
                     try? FileManager.default.removeItem(at: dir)
                     return
                 }
-                onDrop?(all, dir)
+                onDrop?(all, dir, .copy)
             }
         }
         return true
@@ -446,7 +573,7 @@ final class DropOverlayView: NSView {
                 try? FileManager.default.removeItem(at: dir)
                 return
             }
-            onDrop?(all, dir)
+            onDrop?(all, dir, .copy)
         }
         return true
     }

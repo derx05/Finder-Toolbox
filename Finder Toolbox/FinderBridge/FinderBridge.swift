@@ -131,6 +131,128 @@ actor FinderBridge {
         return outcomes
     }
 
+    /// Mirror of `moveAndRename` for the copy case: leaves the original
+    /// in place and produces a duplicate in `targetFolder` with the
+    /// caller-supplied `newName`. Uses Finder's `duplicate` verb so the
+    /// new file lands in Finder's undo stack. Cross-volume copies go
+    /// through the FileManager fallback (the same SMB-strict variants
+    /// the move path uses) rather than Finder, because Finder's
+    /// `duplicate` is just as unreliable on SMB as `move`.
+    func copyAndRename(_ items: [(source: URL, targetFolder: URL, newName: String)]) -> [RenameOutcome] {
+        guard !items.isEmpty else { return [] }
+
+        var local: [(source: URL, targetFolder: URL, newName: String)] = []
+        var remote: [(source: URL, targetFolder: URL, newName: String)] = []
+        for item in items {
+            if isOnRemoteVolume(item.targetFolder) {
+                remote.append(item)
+            } else {
+                local.append(item)
+            }
+        }
+
+        var outcomes: [RenameOutcome] = []
+        if !local.isEmpty {
+            outcomes.append(contentsOf: copyAndRenameViaFinder(local))
+        }
+        if !remote.isEmpty {
+            outcomes.append(contentsOf: copyAndRenameViaFileManager(remote))
+        }
+        return outcomes
+    }
+
+    private func copyAndRenameViaFinder(_ items: [(source: URL, targetFolder: URL, newName: String)]) -> [RenameOutcome] {
+        if let outcomes = tryBatchCopyAndRename(items) {
+            return outcomes
+        }
+        return items.map { item in
+            let toURL = item.targetFolder.appendingPathComponent(item.newName)
+            let fm = FileManager.default
+            // The batch may have completed this item before failing on a
+            // later one — if the destination already exists and the
+            // source is still there, treat it as done.
+            if fm.fileExists(atPath: item.source.path), fm.fileExists(atPath: toURL.path) {
+                return .renamed(from: item.source, to: toURL)
+            }
+            do {
+                try copyAndRenameSingle(source: item.source, targetFolder: item.targetFolder, newName: item.newName)
+                return .renamed(from: item.source, to: toURL)
+            } catch {
+                return .failed(item.source, error: error.localizedDescription)
+            }
+        }
+    }
+
+    /// SMB-friendly copy path: writes a UUID-named intermediate via
+    /// `FileManager.copyItem` (or the data-only / streamed fallback the
+    /// move path already uses), then hands the rename to Finder so the
+    /// final name lands in the undo stack. The copy itself is not in
+    /// Finder's undo — Cmd-Z in Finder reverts only the rename.
+    private func copyAndRenameViaFileManager(_ items: [(source: URL, targetFolder: URL, newName: String)]) -> [RenameOutcome] {
+        struct Copied {
+            let originalSource: URL
+            let intermediate: URL
+            let finalName: String
+        }
+        var copied: [Copied] = []
+        var outcomes: [RenameOutcome] = []
+
+        for item in items {
+            let intermediateName = "fttmp-\(UUID().uuidString).tmp"
+            let intermediate = item.targetFolder.appendingPathComponent(intermediateName)
+            do {
+                try crossVolumeCopy(from: item.source, to: intermediate)
+                copied.append(Copied(originalSource: item.source, intermediate: intermediate, finalName: item.newName))
+            } catch {
+                log.error("cross-volume copy failed src=\(item.source.path, privacy: .public) dst=\(intermediate.path, privacy: .public) err=\(String(describing: error), privacy: .public)")
+                outcomes.append(.failed(item.source, error: friendlyError(error)))
+            }
+        }
+
+        if copied.isEmpty { return outcomes }
+
+        let renameInputs = copied.map { (from: $0.intermediate, to: $0.finalName) }
+        let renameOutcomes = batchRename(renameInputs)
+
+        let sourceByIntermediate: [URL: URL] = Dictionary(
+            uniqueKeysWithValues: copied.map { ($0.intermediate, $0.originalSource) }
+        )
+        for outcome in renameOutcomes {
+            switch outcome {
+            case .renamed(let from, let to):
+                outcomes.append(.renamed(from: sourceByIntermediate[from] ?? from, to: to))
+            case .failed(let url, let error):
+                let original = sourceByIntermediate[url] ?? url
+                outcomes.append(.failed(original, error: "Copied to \(url.path) but rename failed: \(error)"))
+            case .skipped(let url, let reason):
+                outcomes.append(.skipped(sourceByIntermediate[url] ?? url, reason: reason))
+            }
+        }
+        return outcomes
+    }
+
+    /// Cross-volume copy with the same SMB-strict fallback ladder as
+    /// `crossVolumeMove`, minus the source removal at the end.
+    private func crossVolumeCopy(from source: URL, to destination: URL) throws {
+        do {
+            try FileManager.default.copyItem(at: source, to: destination)
+            return
+        } catch {
+            log.info("copyItem failed, retrying with copyfile: \(String(describing: error), privacy: .public)")
+        }
+
+        if copyfileDataOnly(from: source, to: destination) {
+            return
+        }
+
+        do {
+            try streamCopy(from: source, to: destination)
+        } catch {
+            try? FileManager.default.removeItem(at: destination)
+            throw error
+        }
+    }
+
     private func moveAndRenameViaFinder(_ items: [(source: URL, targetFolder: URL, newName: String)]) -> [RenameOutcome] {
         if let outcomes = tryBatchMoveAndRename(items) {
             return outcomes
@@ -407,6 +529,41 @@ actor FinderBridge {
         } catch {
             return nil
         }
+    }
+
+    private func tryBatchCopyAndRename(_ items: [(source: URL, targetFolder: URL, newName: String)]) -> [RenameOutcome]? {
+        var lines = ["tell application \"Finder\""]
+        for (i, item) in items.enumerated() {
+            let varName = "copiedItem_\(i)"
+            let sourcePath = item.source.path
+            let folderPath = item.targetFolder.path
+            let newName = finderName(from: item.newName)
+            lines.append("  set \(varName) to duplicate (POSIX file \(asString(sourcePath))) to folder (POSIX file \(asString(folderPath)))")
+            lines.append("  set name of \(varName) to \(asString(newName))")
+        }
+        lines.append("end tell")
+
+        do {
+            try runScript(lines.joined(separator: "\n"))
+            return items.map { item in
+                let toURL = item.targetFolder.appendingPathComponent(item.newName)
+                return .renamed(from: item.source, to: toURL)
+            }
+        } catch {
+            return nil
+        }
+    }
+
+    private func copyAndRenameSingle(source: URL, targetFolder: URL, newName: String) throws {
+        let folderPath = targetFolder.path
+        let name = finderName(from: newName)
+        let script = """
+            tell application "Finder"
+                set copiedItem to duplicate (POSIX file \(asString(source.path))) to folder (POSIX file \(asString(folderPath)))
+                set name of copiedItem to \(asString(name))
+            end tell
+        """
+        try runScript(script)
     }
 
     private func moveAndRenameSingle(source: URL, targetFolder: URL, newName: String) throws {
