@@ -375,7 +375,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = "0.1.1-beta.1";
+				MARKETING_VERSION = "0.2.0-beta.1";
 				PRODUCT_BUNDLE_IDENTIFIER = "danielammann.Finder-Toolbox";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -416,7 +416,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = "0.1.1-beta.1";
+				MARKETING_VERSION = "0.2.0-beta.1";
 				PRODUCT_BUNDLE_IDENTIFIER = "danielammann.Finder-Toolbox";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
