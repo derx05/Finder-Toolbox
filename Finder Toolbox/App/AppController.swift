@@ -52,11 +52,21 @@ final class AppController: ObservableObject {
         }
         HotkeyManager.shared.setup()
 
-        #if DEBUG
-        // Issue #29 drag-time drop targets — DEBUG-only while in development.
-        // No settings yet; always-on when running a debug build.
-        DropTargetsCoordinator.shared.start()
-        #endif
+        // Issue #29 drag-time drop targets. Off by default — gated by
+        // the `dropTargets.enabled` user default, settable on the
+        // dedicated Settings page. Observe defaults so toggling the
+        // switch in Settings starts/stops the coordinator live without
+        // requiring a restart.
+        DropTargetsCoordinator.shared.refreshFromDefaults()
+        NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            MainActor.assumeIsolated {
+                DropTargetsCoordinator.shared.refreshFromDefaults()
+            }
+        }
     }
 
     #if DEBUG

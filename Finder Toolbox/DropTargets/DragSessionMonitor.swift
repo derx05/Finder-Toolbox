@@ -48,6 +48,14 @@ final class DragSessionMonitor {
         }
     }
 
+    func stop() {
+        if let monitor {
+            NSEvent.removeMonitor(monitor)
+        }
+        monitor = nil
+        state = .idle
+    }
+
     private func handle(_ event: NSEvent) {
         switch event.type {
         case .leftMouseDown:

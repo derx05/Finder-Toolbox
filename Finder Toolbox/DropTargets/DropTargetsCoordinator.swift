@@ -31,10 +31,14 @@ final class DropTargetsCoordinator {
     private var folderByID: [CGWindowID: (URL, String)] = [:]
     private var refreshTask: Task<Void, Never>?
     private var spaceObserver: NSObjectProtocol?
+    private(set) var isRunning = false
 
     private init() {}
 
     func start() {
+        guard !isRunning else { return }
+        isRunning = true
+
         monitor.onDragStarted = { [weak self] in self?.handleDragStarted() }
         monitor.onDragEnded   = { [weak self] in self?.handleDragEnded() }
         monitor.start()
@@ -57,6 +61,36 @@ final class DropTargetsCoordinator {
 
         log.info("DropTargetsCoordinator started — warming folder map")
         refreshFolderMap()
+    }
+
+    func stop() {
+        guard isRunning else { return }
+        isRunning = false
+
+        monitor.stop()
+        monitor.onDragStarted = nil
+        monitor.onDragEnded = nil
+
+        if let spaceObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(spaceObserver)
+        }
+        spaceObserver = nil
+
+        refreshTask?.cancel()
+        refreshTask = nil
+
+        hidePanels()
+        folderByID.removeAll()
+
+        log.info("DropTargetsCoordinator stopped")
+    }
+
+    /// Reads `DefaultsKeys.dropTargetsEnabled` and starts/stops the
+    /// coordinator accordingly. Safe to call repeatedly — start/stop
+    /// are no-ops when already in the desired state.
+    func refreshFromDefaults() {
+        let enabled = UserDefaults.standard.bool(forKey: DefaultsKeys.dropTargetsEnabled)
+        if enabled { start() } else { stop() }
     }
 
     private func handleDragStarted() {

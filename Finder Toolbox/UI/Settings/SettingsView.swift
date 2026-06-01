@@ -5,6 +5,7 @@ import AppKit
 enum SettingsPage: Hashable {
     case general
     case fileRenaming
+    case dropTargets
     case permissions
     case about
 }
@@ -34,6 +35,10 @@ struct SettingsView: View {
                 FileRenamingSettingsPage()
                     .navigationTitle("")
                     .toolbar(.hidden)
+            case .dropTargets:
+                DropTargetsSettingsPage()
+                    .navigationTitle("")
+                    .toolbar(.hidden)
             case .permissions:
                 PermissionsSettingsPage()
                     .navigationTitle("")
@@ -52,6 +57,9 @@ struct SettingsView: View {
         .onAppear { columnVisibility = .all }
         .onChange(of: columnVisibility) { columnVisibility = .all }
         .background(ResizableWindowAccessor())
+        .onReceive(NotificationCenter.default.publisher(for: .openPermissionsSettingsPage)) { _ in
+            selection = .permissions
+        }
         .onDisappear {
             DockModeManager.shared.settingsDidClose()
         }
@@ -81,9 +89,12 @@ private struct SettingsSidebar: View {
                 Label("General", systemImage: "gearshape")
             }
 
-            Section("Features") {
+            Section("File Renaming") {
                 NavigationLink(value: SettingsPage.fileRenaming) {
-                    Label("File Renaming", systemImage: "pencil.and.outline")
+                    Label("General", systemImage: "pencil.and.outline")
+                }
+                NavigationLink(value: SettingsPage.dropTargets) {
+                    Label("Drop Targets", systemImage: "square.and.arrow.down.on.square")
                 }
             }
 

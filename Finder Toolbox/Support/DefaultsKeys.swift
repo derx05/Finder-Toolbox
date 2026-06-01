@@ -61,6 +61,9 @@ nonisolated enum DefaultsKeys {
     static let recursiveWarnEnabled     = "folders.recursiveWarnEnabled"
     static let recursiveWarnThreshold   = "folders.recursiveWarnThreshold"
 
+    // Drag-time drop targets (issue #29). Off by default — opt-in via Settings.
+    static let dropTargetsEnabled       = "dropTargets.enabled"
+
     // Updates. `updatesChannel` raw values come from `UpdateChannel.rawValue`;
     // `updatesAutoCheck` / `updatesAutoDownload` mirror Sparkle's
     // `automaticallyChecksForUpdates` / `automaticallyDownloadsUpdates` so the
