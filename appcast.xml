@@ -30,6 +30,28 @@
         -->
 
         <item>
+            <title>Finder Toolbox 0.2.0-beta.1</title>
+            <sparkle:version>2026.06.01.01</sparkle:version>
+            <sparkle:shortVersionString>0.2.0-beta.1</sparkle:shortVersionString>
+            <sparkle:channel>beta</sparkle:channel>
+            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <ul>
+                    <li>New: Finder drop-target overlays with Mail / Safari / Photos promise support, modifier-driven move/copy semantics, and Space-change handling mid-drag (opt-in hover-gating available).</li>
+                    <li>Renamer: folder-name rename scope (files-only by default) and recursive folder-mode handling.</li>
+                    <li>Settings: dedicated permissions surface on the File Renaming page; Mail Automation grant surfaced; UI refresh.</li>
+                    <li>Fixes: Sparkle auto-update toggle, debug-launch hotkey conflict, Mail conversation mode and SMB drop reliability.</li>
+                    <li>Cleanup: quiet per-drag info logs so Console.app stays usable.</li>
+                </ul>
+            ]]></description>
+            <pubDate>Mon, 01 Jun 2026 16:17:41 +0000</pubDate>
+            <enclosure
+                url="https://github.com/derx05/Finder-Toolbox/releases/download/v0.2.0-beta.1/FinderToolbox-0.2.0-beta.1-2026.06.01.01.zip"
+                sparkle:edSignature="WOtcT0peWWzS0prqQ81ndPW2AekrBq6jKWWs+gOQr2BeVGMfXS3ZXbXvPg8F/xtT85HxyueGUYJK/qrCpszxAw==" length="3634621"
+                type="application/octet-stream" />
+        </item>
+
+        <item>
             <title>Finder Toolbox 0.1.0-beta.3</title>
             <sparkle:version>2026.05.29.02</sparkle:version>
             <sparkle:shortVersionString>0.1.0-beta.3</sparkle:shortVersionString>
