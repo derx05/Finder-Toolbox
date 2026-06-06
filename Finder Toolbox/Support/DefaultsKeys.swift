@@ -75,6 +75,13 @@ nonisolated enum DefaultsKeys {
     // Cuts visual noise when many Finder windows are open.
     static let dropTargetsHoverGated    = "dropTargets.hoverGated"
 
+    // Developer / debugging. `dropTargetsDebugLog` enables the in-app ring
+    // buffer in `DebugLog`; OSLog mirroring happens unconditionally.
+    // `showDropDebugPopups` shows an auto-dismissing toast after each drop
+    // with the drop's resolved details and the executor summary.
+    static let dropTargetsDebugLog      = "debug.dropTargetsLog"
+    static let showDropDebugPopups      = "debug.showDropPopups"
+
     // Updates. `updatesChannel` raw values come from `UpdateChannel.rawValue`;
     // `updatesAutoCheck` / `updatesAutoDownload` mirror Sparkle's
     // `automaticallyChecksForUpdates` / `automaticallyDownloadsUpdates` so the

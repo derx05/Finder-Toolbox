@@ -410,9 +410,14 @@ final class DropOverlayView: NSView {
                 fileURLs.append(contentsOf: urls)
             }
             log.debug("dropOverlay[\(self.folderName, privacy: .public)]: drop resolved \(fileURLs.count, privacy: .public) file URL(s)")
+            DebugLog.log("drop-overlay",
+                         "perform[\(self.folderName)] path=plainFileURL op=\(operation) urls=\(fileURLs.count)",
+                         level: fileURLs.isEmpty ? .warning : .info)
             if !fileURLs.isEmpty { onDrop?(fileURLs, nil, operation) }
             return !fileURLs.isEmpty
         }
+        DebugLog.log("drop-overlay",
+                     "perform[\(self.folderName)] path=\(hasLegacyPromise ? "legacyPromise" : "modernPromise") receivers=\(promiseReceivers.count)")
 
         // Promise present → IGNORE any plain file URLs on the pasteboard.
         // They are the source app's internal originals, not safe to touch.
@@ -446,6 +451,9 @@ final class DropOverlayView: NSView {
                 let urls = try MailBridge.saveMessages(dragged, to: dir)
                 DispatchQueue.main.async {
                     log.debug("dropOverlay[\(folderName, privacy: .public)]: Mail bridge resolved \(urls.count, privacy: .public) message(s)")
+                    DebugLog.log("drop-overlay",
+                                 "Mail bridge resolved \(urls.count) message(s) for \(folderName)",
+                                 level: urls.isEmpty ? .warning : .info)
                     if urls.isEmpty {
                         try? FileManager.default.removeItem(at: dir)
                         return
@@ -529,6 +537,9 @@ final class DropOverlayView: NSView {
                 var all = fileURLs
                 all.append(contentsOf: resolved)
                 log.debug("dropOverlay[\(folderName, privacy: .public)]: legacy promise resolved \(resolved.count, privacy: .public)/\(expected.count, privacy: .public) file(s)")
+                DebugLog.log("drop-overlay",
+                             "legacy promise[\(folderName)] resolved \(resolved.count)/\(expected.count) file(s)",
+                             level: resolved.count < expected.count ? .warning : .info)
                 if all.isEmpty {
                     try? FileManager.default.removeItem(at: dir)
                     return
@@ -569,6 +580,9 @@ final class DropOverlayView: NSView {
             var all = fileURLs
             all.append(contentsOf: urlsBox.urls)
             log.debug("dropOverlay[\(folderName, privacy: .public)]: modern promise resolved \(all.count, privacy: .public) file(s)")
+            DebugLog.log("drop-overlay",
+                         "modern promise[\(folderName)] resolved \(all.count) file(s)",
+                         level: all.isEmpty ? .warning : .info)
             if all.isEmpty {
                 try? FileManager.default.removeItem(at: dir)
                 return

@@ -121,6 +121,9 @@ final class DropTargetsCoordinator {
         dragSourceURLs = info.urls
         dragPromiseOnly = info.promiseOnly
 
+        DebugLog.log("drop-targets",
+                     "drag started — sources=\(info.urls.count) promiseOnly=\(info.promiseOnly) urls=[\(info.urls.map(\.path).joined(separator: ", "))]")
+
         // Fast path: synchronous CGWindowList + cached folder map. Works
         // immediately after a Space switch because window IDs are stable.
         let cgWindows = FinderWindowSnapshot.currentVisibleFinderWindows()
@@ -141,6 +144,13 @@ final class DropTargetsCoordinator {
         startHoverMonitorIfNeeded()
         applyHoverGating()
 
+        DebugLog.log("drop-targets",
+                     "drag started — cgWindows=\(cgWindows.count) cacheHits=\(windows.count) panels=\(panels.count) hoverGated=\(hoverGatingEnabled)")
+        for window in windows {
+            DebugLog.log("drop-targets",
+                         "  panel: id=\(window.windowID) folder=\(window.targetFolder.path) title=\"\(window.title)\" rect=\(NSStringFromRect(window.screenRect))")
+        }
+
         // If any visible Finder window wasn't in the folder cache (first
         // drag after launch, or a window opened since the last refresh),
         // kick a background AE refresh and rebuild panels mid-drag once
@@ -148,12 +158,16 @@ final class DropTargetsCoordinator {
         // an overlay for that window — the visible symptom of the
         // "popups don't show up ~1 in 5 drags" bug.
         if windows.count < cgWindows.count {
+            DebugLog.log("drop-targets",
+                         "drag started — \(cgWindows.count - windows.count) of \(cgWindows.count) CG window(s) missing from folder map; refreshing mid-drag",
+                         level: .warning)
             log.debug("drag started — \(cgWindows.count - windows.count, privacy: .public) of \(cgWindows.count, privacy: .public) CG window(s) missing from folder map; refreshing + rebuilding mid-drag")
             refreshFolderMapAndRebuild()
         }
     }
 
     private func handleDragEnded() {
+        DebugLog.log("drop-targets", "drag ended")
         dragActive = false
         stopModifierMonitor()
         stopHoverMonitor()
@@ -336,6 +350,8 @@ final class DropTargetsCoordinator {
             (panel.contentView as? DropOverlayView)?.onDrop = { [weak self] urls, tempDir, operation in
                 guard let self else { return }
                 self.log.debug("drop accepted: \(urls.count, privacy: .public) file(s) → \(window.targetFolder.path, privacy: .public) op=\(String(describing: operation), privacy: .public)")
+                DebugLog.log("drop-targets",
+                             "drop accepted on \"\(window.title)\" — \(urls.count) file(s) op=\(operation) target=\(window.targetFolder.path) urls=[\(urls.map(\.lastPathComponent).joined(separator: ", "))]")
                 let targetFolder = window.targetFolder
                 Task { @MainActor in
                     await AppController.shared.performDrop(urls: urls, into: targetFolder, operation: operation)
