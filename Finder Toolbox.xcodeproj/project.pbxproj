@@ -21,7 +21,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		65634D162FAA163500F8ACE4 /* Finder Toolbox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Finder Toolbox.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		65634D162FAA163500F8ACE4 /* Finder Toolbox-Debug.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Finder Toolbox-Debug.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		7711AA00000000000000A004 /* Finder ToolboxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Finder ToolboxTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -82,7 +82,7 @@
 		65634D172FAA163500F8ACE4 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				65634D162FAA163500F8ACE4 /* Finder Toolbox.app */,
+				65634D162FAA163500F8ACE4 /* Finder Toolbox-Debug.app */,
 				7711AA00000000000000A004 /* Finder ToolboxTests.xctest */,
 			);
 			name = Products;
@@ -111,7 +111,7 @@
 				65B12D082FBE1EDC004D3B88 /* Sparkle */,
 			);
 			productName = "Finder Toolbox";
-			productReference = 65634D162FAA163500F8ACE4 /* Finder Toolbox.app */;
+			productReference = 65634D162FAA163500F8ACE4 /* Finder Toolbox-Debug.app */;
 			productType = "com.apple.product-type.application";
 		};
 		7711AA00000000000000A003 /* Finder ToolboxTests */ = {
@@ -355,7 +355,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Finder Toolbox/Finder Toolbox.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2026.06.01.02;
+				CURRENT_PROJECT_VERSION = 2026.06.07.01;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = S5RTVC5QRF;
 				ENABLE_APP_SANDBOX = NO;
@@ -375,7 +375,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = "0.2.0-beta.2";
+				MARKETING_VERSION = "0.2.1-dev.1";
 				PRODUCT_BUNDLE_IDENTIFIER = "danielammann.Finder-Toolbox.debug";
 				PRODUCT_NAME = "$(TARGET_NAME)-Debug";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -396,7 +396,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Finder Toolbox/Finder Toolbox.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2026.06.01.02;
+				CURRENT_PROJECT_VERSION = 2026.06.07.01;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = S5RTVC5QRF;
 				ENABLE_APP_SANDBOX = NO;
@@ -416,7 +416,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = "0.2.0-beta.2";
+				MARKETING_VERSION = "0.2.1-dev.1";
 				PRODUCT_BUNDLE_IDENTIFIER = "danielammann.Finder-Toolbox";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
