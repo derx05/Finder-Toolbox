@@ -30,6 +30,30 @@
         -->
 
         <item>
+            <title>Finder Toolbox 0.2.1-beta.1</title>
+            <sparkle:version>2026.06.08.01</sparkle:version>
+            <sparkle:shortVersionString>0.2.1-beta.1</sparkle:shortVersionString>
+            <sparkle:channel>beta</sparkle:channel>
+            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <ul>
+                    <li>Drop targets: replaced background polling with a one-shot cache that warms at start and refreshes at drag-end; panels appear immediately even on a cold cache, and stale labels for non-Finder sources update mid-drag.</li>
+                    <li>Drop targets: hourglass loading state while a panel resolves; drops are refused until the target folder is known, so the move/copy decision can never be made against an unknown destination.</li>
+                    <li>Drop targets: Spaces swipes mid-drag re-sync visible panels from the cache without an extra Apple Event round-trip.</li>
+                    <li>Mail attachments: source URLs in another app's sandbox container now render the copy tint from the first paint instead of flipping move → copy on hover.</li>
+                    <li>Permissions: dragging a file out of another app's sandbox container (Mail Downloads, etc.) without Full Disk Access now surfaces a proactive recovery dialog instead of a cryptic AppleScript / EPERM error.</li>
+                    <li>Developer: new opt-in Developer settings page with a drop-target log viewer (filterable, copy/save) and a post-drop result toast — useful for diagnosing the "heard a copy sound but no file appeared" case.</li>
+                    <li>Internal: silenced MainActor-isolation and Mail.app promise-drop deprecation warnings.</li>
+                </ul>
+            ]]></description>
+            <pubDate>Mon, 08 Jun 2026 07:40:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/derx05/Finder-Toolbox/releases/download/v0.2.1-beta.1/FinderToolbox-0.2.1-beta.1-2026.06.08.01.zip"
+                sparkle:edSignature="eB8AANbs0pnOunhBK9GHMl3D3jzJ25fGzjjhNePveMnjHBbRq6B2AhWPzEuYd2fasu/YvL9+JG+blDFz/rI3DQ==" length="3755658"
+                type="application/octet-stream" />
+        </item>
+
+        <item>
             <title>Finder Toolbox 0.2.0-beta.2</title>
             <sparkle:version>2026.06.01.02</sparkle:version>
             <sparkle:shortVersionString>0.2.0-beta.2</sparkle:shortVersionString>
