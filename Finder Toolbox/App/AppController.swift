@@ -297,6 +297,26 @@ final class AppController: ObservableObject {
             return
         }
 
+        // Same proactive TCC check, but for sources living inside another
+        // app's sandbox container (Mail attachments under
+        // `~/Library/Containers/com.apple.mail/Data/Library/Mail Downloads/`
+        // are the common case). Without FDA the Finder duplicate verb
+        // fails with "operation can't be completed" and our FileManager
+        // fallback hits EPERM at `open(2)` — neither surfaces the actual
+        // remedy. Short-circuit with the same recovery dialog.
+        if let gatedSource = urls.first(where: { PermissionsManager.shared.isTCCGatedSource($0) }),
+           !PermissionsManager.shared.hasFullDiskAccess() {
+            DebugLog.log("perform-drop",
+                         "TCC-gated source (\(gatedSource.path)) + no FDA — showing recovery dialog",
+                         level: .error)
+            DropResultToast.showIfEnabled(targetFolder: targetFolder, operation: operation,
+                                          inputCount: urls.count, renamed: 0,
+                                          failed: [(gatedSource, "Full Disk Access required")],
+                                          skipped: 0)
+            SummaryDialog.showFullDiskAccessRequired()
+            return
+        }
+
         // Resolve folder-mode + folder-scope from the file-renamer prefs
         // when the drop contains any folders. Same prefs and same "ask"
         // dialogs the hotkey path uses, so dropping a folder behaves the
