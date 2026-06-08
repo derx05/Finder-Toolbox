@@ -4,7 +4,7 @@ import Combine
 import Sparkle
 import UserNotifications
 
-private let updateNotificationIdentifier = "danielammann.Finder-Toolbox.update-available"
+nonisolated private let updateNotificationIdentifier = "danielammann.Finder-Toolbox.update-available"
 
 /// User-selectable release channel.
 ///
@@ -18,7 +18,7 @@ private let updateNotificationIdentifier = "danielammann.Finder-Toolbox.update-a
 ///
 /// The raw value is what we write into the appcast XML and what we persist
 /// in `UserDefaults`. Don't rename these without a migration.
-enum UpdateChannel: String, CaseIterable, Identifiable {
+nonisolated enum UpdateChannel: String, CaseIterable, Identifiable {
     case release
     case beta
     case development
@@ -228,7 +228,7 @@ extension UpdateController: SPUStandardUserDriverDelegate {
         let version = update.displayVersionString
         Task { @MainActor in
             let center = UNUserNotificationCenter.current()
-            center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+            _ = try? await center.requestAuthorization(options: [.alert, .sound])
 
             let content = UNMutableNotificationContent()
             content.title = String(localized: "A new version of Finder Toolbox is available")
@@ -238,7 +238,7 @@ extension UpdateController: SPUStandardUserDriverDelegate {
                 content: content,
                 trigger: nil
             )
-            center.add(request)
+            try? await center.add(request)
         }
     }
 

@@ -8,6 +8,7 @@ enum SettingsPage: Hashable {
     case dropTargets
     case permissions
     case advanced
+    case developer
     case about
 }
 
@@ -46,6 +47,10 @@ struct SettingsView: View {
                     .toolbar(.hidden)
             case .advanced:
                 AdvancedSettingsPage()
+                    .navigationTitle("")
+                    .toolbar(.hidden)
+            case .developer:
+                DeveloperSettingsPage()
                     .navigationTitle("")
                     .toolbar(.hidden)
             case .about:
@@ -109,6 +114,9 @@ private struct SettingsSidebar: View {
                 }
                 NavigationLink(value: SettingsPage.advanced) {
                     Label("Storage", systemImage: "internaldrive")
+                }
+                NavigationLink(value: SettingsPage.developer) {
+                    Label("Developer", systemImage: "ladybug")
                 }
                 NavigationLink(value: SettingsPage.about) {
                     Label("About", systemImage: "info.circle")

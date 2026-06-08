@@ -162,6 +162,19 @@ final class PermissionsManager: ObservableObject {
         return gated.contains(target)
     }
 
+    /// True if the source URL lives inside another app's sandbox container
+    /// (`~/Library/Containers/<bundle>/Data/...`). The canonical case is
+    /// Mail attachments under `~/Library/Containers/com.apple.mail/Data/
+    /// Library/Mail Downloads/` — reading those requires Full Disk Access.
+    /// Without FDA, both the Finder Apple Events path and our FileManager
+    /// fallback fail with cryptic errors instead of a clear "grant FDA"
+    /// signal. Detect upfront so callers can surface the recovery dialog.
+    func isTCCGatedSource(_ url: URL) -> Bool {
+        let path = url.standardizedFileURL.path
+        let containersPrefix = "\(NSHomeDirectory())/Library/Containers/"
+        return path.hasPrefix(containersPrefix)
+    }
+
     /// Opens System Settings → Privacy & Security → Full Disk Access.
     /// Needed for the drop-targets feature: a file *move* via Apple Events
     /// to Finder is gated by TCC on the destination path, and TCC checks

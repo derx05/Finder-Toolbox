@@ -71,6 +71,21 @@ Current settings (as shipped in 1.0.0 Beta):
 
 Format: `**Full changelog**: https://github.com/derx05/Finder-Toolbox/compare/<prev-tag>...<this-tag>`. The release-naming and tagging conventions in `docs/RELEASING.md` are already correct — only the description body needs this addition.
 
+## Branch workflow
+
+- `main` = stable, clean release history. Each PR from `dev` → `main` is **squash-merged** so `main` stays a low-volume branch of release commits + appcast/hotfix tweaks.
+- `dev` = long-lived integration branch, default PR target for feature work (`cc/<task>` branches → PR → squash-merge into `dev`).
+- **Never force-push or reset `dev`.** When `main` moves (squash-merge from `dev`, hotfix, appcast bump), bring those commits back into `dev` with a regular merge:
+
+  ```sh
+  git checkout dev && git merge main && git push origin dev
+  ```
+
+  This is a non-destructive merge commit. `dev`'s granular history is preserved; the squashed release commit from `main` lands alongside the originals (trees match, no conflicts, some redundant history accumulates — acceptable).
+
+- After every change on `main`, immediately merge `main` back into `dev`. Easy to forget — GitHub doesn't auto-sync after a squash-merge.
+- Past exception: in 2026-06, `dev` was hard-reset to `main` once to recover from accumulated divergence. Don't repeat that — use the merge-back flow above instead.
+
 ## Deployment targets
 
 - App target: macOS **15.6** (`MACOSX_DEPLOYMENT_TARGET = 15.6` at the target level).

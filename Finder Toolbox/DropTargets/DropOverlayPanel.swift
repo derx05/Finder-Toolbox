@@ -7,13 +7,23 @@ import AppKit
 @MainActor
 final class DropOverlayPanel: NSPanel {
 
-    let target: FinderWindow
+    private(set) var target: FinderWindow
 
     static let panelSize = NSSize(width: 210, height: 58)
     /// Inset from the Finder window's bottom-right corner. Matches the
     /// window's corner radius so the overlay sits flush against the
     /// inside of the rounded corner without visually clipping it.
     static let cornerInset: CGFloat = 10
+
+    /// Update the panel's target folder + window title after the Apple
+    /// Events resolution to Finder returns. The on-screen label refreshes
+    /// in place; the panel's frame doesn't move because windowID and
+    /// screenRect are known at construction time and don't change.
+    func setTarget(folder: URL, title: String) {
+        target.targetFolder = folder
+        target.title = title
+        (contentView as? DropOverlayView)?.setTarget(folderName: folder.lastPathComponent, targetFolder: folder)
+    }
 
     init(target: FinderWindow) {
         self.target = target
@@ -44,7 +54,7 @@ final class DropOverlayPanel: NSPanel {
         appearance = NSApp.effectiveAppearance
 
         let view = DropOverlayView(
-            folderName: target.targetFolder.lastPathComponent,
+            folderName: target.targetFolder?.lastPathComponent ?? "",
             targetFolder: target.targetFolder
         )
         contentView = view
@@ -57,10 +67,11 @@ final class DropOverlayPanel: NSPanel {
     /// whose bottom edge is below the dock).
     static func overlayFrame(for target: FinderWindow) -> NSRect {
         let size = panelSize
-        var x = target.screenRect.maxX - size.width - cornerInset
-        var y = target.screenRect.minY + cornerInset
+        let rect = target.screenRect
+        var x = rect.maxX - size.width - cornerInset
+        var y = rect.minY + cornerInset
 
-        let screen = NSScreen.screens.first(where: { $0.frame.intersects(target.screenRect) })
+        let screen = NSScreen.screens.first(where: { $0.frame.intersects(rect) })
             ?? NSScreen.main
             ?? NSScreen.screens.first
 

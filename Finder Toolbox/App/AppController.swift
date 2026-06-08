@@ -265,9 +265,17 @@ final class AppController: ObservableObject {
     /// hotkey path uses, just with an explicit destination folder instead
     /// of an in-place rename.
     func performDrop(urls: [URL], into targetFolder: URL, operation: DropOperation) async {
-        guard !urls.isEmpty, !isRenaming else { return }
+        guard !urls.isEmpty, !isRenaming else {
+            DebugLog.log("perform-drop",
+                         "skipped — empty=\(urls.isEmpty) busy=\(isRenaming)",
+                         level: .warning)
+            return
+        }
         isRenaming = true
         defer { isRenaming = false }
+
+        DebugLog.log("perform-drop",
+                     "start — \(urls.count) item(s) op=\(operation) → \(targetFolder.path)")
 
         // Proactive TCC check: if the target folder is TCC-gated and we
         // don't have Full Disk Access, the move via Finder Apple Events
@@ -278,6 +286,33 @@ final class AppController: ObservableObject {
         // link instead of a confusing two-prompt loop.
         if PermissionsManager.shared.isTCCGatedDestination(targetFolder),
            !PermissionsManager.shared.hasFullDiskAccess() {
+            DebugLog.log("perform-drop",
+                         "TCC-gated destination + no FDA — showing recovery dialog",
+                         level: .error)
+            DropResultToast.showIfEnabled(targetFolder: targetFolder, operation: operation,
+                                          inputCount: urls.count, renamed: 0,
+                                          failed: [(targetFolder, "Full Disk Access required")],
+                                          skipped: 0)
+            SummaryDialog.showFullDiskAccessRequired()
+            return
+        }
+
+        // Same proactive TCC check, but for sources living inside another
+        // app's sandbox container (Mail attachments under
+        // `~/Library/Containers/com.apple.mail/Data/Library/Mail Downloads/`
+        // are the common case). Without FDA the Finder duplicate verb
+        // fails with "operation can't be completed" and our FileManager
+        // fallback hits EPERM at `open(2)` — neither surfaces the actual
+        // remedy. Short-circuit with the same recovery dialog.
+        if let gatedSource = urls.first(where: { PermissionsManager.shared.isTCCGatedSource($0) }),
+           !PermissionsManager.shared.hasFullDiskAccess() {
+            DebugLog.log("perform-drop",
+                         "TCC-gated source (\(gatedSource.path)) + no FDA — showing recovery dialog",
+                         level: .error)
+            DropResultToast.showIfEnabled(targetFolder: targetFolder, operation: operation,
+                                          inputCount: urls.count, renamed: 0,
+                                          failed: [(gatedSource, "Full Disk Access required")],
+                                          skipped: 0)
             SummaryDialog.showFullDiskAccessRequired()
             return
         }
@@ -335,6 +370,19 @@ final class AppController: ObservableObject {
             renameFolders: resolvedRenameScope
         )
         let summary = dropResult.summary
+
+        DebugLog.log("perform-drop",
+                     "executor done — renamed=\(summary.renamedCount) skipped=\(summary.skipped.count) failed=\(summary.failed.count)",
+                     level: summary.failed.isEmpty ? .info : .error)
+        for (url, err) in summary.failed {
+            DebugLog.log("perform-drop", "  failed: \(url.lastPathComponent) — \(err)", level: .error)
+        }
+
+        DropResultToast.showIfEnabled(targetFolder: targetFolder, operation: operation,
+                                      inputCount: urls.count,
+                                      renamed: summary.renamedCount,
+                                      failed: summary.failed,
+                                      skipped: summary.skipped.count)
 
         if PermissionsManager.shared.finderAutomationStatus == .denied {
             SummaryDialog.showPermissionDenied()

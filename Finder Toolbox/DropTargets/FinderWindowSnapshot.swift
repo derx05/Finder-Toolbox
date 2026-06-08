@@ -5,12 +5,16 @@ import OSLog
 ///
 /// `screenRect` is in Cocoa screen coordinates (origin bottom-left, primary
 /// screen at y=0). `targetFolder` is the folder that window is showing —
-/// the destination an overlay drop would route into.
+/// the destination an overlay drop would route into. `targetFolder` and
+/// `title` are optional because the panel is created from the synchronous
+/// CGWindowList side before the Apple Events resolution to Finder has
+/// returned; they're filled in by `DropOverlayPanel.setTarget` once the
+/// AE query lands.
 struct FinderWindow: Sendable, Equatable {
     let windowID: CGWindowID
     let screenRect: NSRect
-    let targetFolder: URL
-    let title: String
+    var targetFolder: URL?
+    var title: String?
 }
 
 /// Enumerates visible Finder windows and joins each one's on-screen rect

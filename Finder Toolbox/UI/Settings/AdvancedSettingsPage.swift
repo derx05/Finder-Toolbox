@@ -59,7 +59,7 @@ struct AdvancedSettingsPage: View {
     }
 }
 
-private func directorySize(at root: URL) -> Int64 {
+nonisolated private func directorySize(at root: URL) -> Int64 {
     let fm = FileManager.default
     guard let enumerator = fm.enumerator(
         at: root,

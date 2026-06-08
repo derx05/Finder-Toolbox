@@ -76,9 +76,9 @@ enum DatePriority: String, CaseIterable, Sendable {
     case contentOverridesFilename = "content"
     case filenameWins             = "filename"
 
-    static let `default`: DatePriority = .contentOverridesFilename
+    nonisolated static let `default`: DatePriority = .contentOverridesFilename
 
-    static func current() -> DatePriority {
+    nonisolated static func current() -> DatePriority {
         guard let raw = UserDefaults.standard.string(forKey: DefaultsKeys.datePriority),
               let v = DatePriority(rawValue: raw) else { return .default }
         return v
@@ -94,9 +94,9 @@ enum PdfConflictBehavior: String, CaseIterable, Sendable {
     case preferHeuristic = "heuristic"
     case preferMetadata  = "metadata"
 
-    static let `default`: PdfConflictBehavior = .ask
+    nonisolated static let `default`: PdfConflictBehavior = .ask
 
-    static func current() -> PdfConflictBehavior {
+    nonisolated static func current() -> PdfConflictBehavior {
         guard let raw = UserDefaults.standard.string(forKey: DefaultsKeys.pdfConflictBehavior),
               let v = PdfConflictBehavior(rawValue: raw) else { return .default }
         return v
@@ -112,9 +112,9 @@ enum PdfNoDateBehavior: String, CaseIterable, Sendable {
     case metadata
     case today
 
-    static let `default`: PdfNoDateBehavior = .ask
+    nonisolated static let `default`: PdfNoDateBehavior = .ask
 
-    static func current() -> PdfNoDateBehavior {
+    nonisolated static func current() -> PdfNoDateBehavior {
         guard let raw = UserDefaults.standard.string(forKey: DefaultsKeys.pdfNoDateBehavior),
               let v = PdfNoDateBehavior(rawValue: raw) else { return .default }
         return v

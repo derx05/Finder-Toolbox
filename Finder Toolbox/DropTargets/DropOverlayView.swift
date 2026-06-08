@@ -7,8 +7,14 @@ import OSLog
 /// a callback. Step-4 will wire the callback to the rename pipeline.
 final class DropOverlayView: NSView {
 
-    let folderName: String
-    let targetFolder: URL
+    /// Folder name displayed under the title. Initially empty when the
+    /// panel is shown synchronously at drag-start before the Apple Events
+    /// resolution to Finder lands. `setTarget` updates this in place.
+    private(set) var folderName: String
+    /// Resolved target folder for the Finder window this overlay covers.
+    /// Nil until the AE resolution completes. `computeOperation` falls
+    /// back to a safe copy default in the meantime.
+    private(set) var targetFolder: URL?
 
     /// Called from `performDragOperation` with the resolved file URLs and
     /// the operation (move vs copy) the user requested via modifier keys
@@ -34,7 +40,15 @@ final class DropOverlayView: NSView {
     /// `draggingEntered` / `draggingUpdated`.
     private var currentOperation: DropOperation = .move
 
-    init(folderName: String, targetFolder: URL) {
+    /// SF Symbol shown while the Apple Events query for the target folder
+    /// is still in flight. Paired with `loadingTintColor` to read as a
+    /// neutral "not yet ready" state — distinct from the move/copy
+    /// affordance so the user doesn't think a drop here will commit to
+    /// an unknown operation.
+    private static let loadingIconSymbolName = "hourglass"
+    private static let loadingTintColor: NSColor = .systemGray
+
+    init(folderName: String, targetFolder: URL?) {
         self.folderName = folderName
         self.targetFolder = targetFolder
         super.init(frame: .zero)
@@ -56,15 +70,19 @@ final class DropOverlayView: NSView {
         addSubview(backdrop)
 
         // Tint layer for the drag-enter highlight (sits on top of the
-        // backdrop, below the labels). Color is updated per-operation.
-        highlightLayer.backgroundColor = currentOperation.tintColor.withAlphaComponent(0.18).cgColor
+        // backdrop, below the labels). Initial color matches the loading
+        // state — `setTarget` will swap it to the operation tint once the
+        // folder resolution lands.
+        let initialTint = (targetFolder == nil) ? Self.loadingTintColor : currentOperation.tintColor
+        let initialIcon = (targetFolder == nil) ? Self.loadingIconSymbolName : currentOperation.iconSymbolName
+        highlightLayer.backgroundColor = initialTint.withAlphaComponent(0.18).cgColor
         highlightLayer.opacity = 0
         layer?.addSublayer(highlightLayer)
 
-        let arrow = NSImage(systemSymbolName: currentOperation.iconSymbolName, accessibilityDescription: nil)
+        let arrow = NSImage(systemSymbolName: initialIcon, accessibilityDescription: nil)
         iconView.image = arrow
         iconView.symbolConfiguration = .init(pointSize: 22, weight: .semibold)
-        iconView.contentTintColor = currentOperation.tintColor
+        iconView.contentTintColor = initialTint
         iconView.translatesAutoresizingMaskIntoConstraints = false
         iconView.wantsLayer = true
         // NSImageView auto-registers for image / file-URL drags via its
@@ -179,11 +197,18 @@ final class DropOverlayView: NSView {
     ///   - promise / library sources → always copy
     func computeOperation(sourceURLs: [URL], promiseOnly: Bool) -> DropOperation {
         if promiseOnly { return .copy }
-        let targetVolume = Self.volumeURL(for: targetFolder)
-        let sameVolume: Bool = !sourceURLs.isEmpty && sourceURLs.allSatisfy { url in
-            guard let v = Self.volumeURL(for: url), let t = targetVolume else { return false }
-            return v == t
-        }
+        // Before the Apple Events resolution lands, `targetFolder` is nil.
+        // Treat that as cross-volume so the default lands on copy — never
+        // surprise the user with a move when we don't yet know where the
+        // drop would actually go. The hint refreshes via
+        // `reflectOperation` as soon as `setTarget` fires.
+        let targetVolume = targetFolder.flatMap { Self.volumeURL(for: $0) }
+        let sameVolume: Bool = targetVolume != nil
+            && !sourceURLs.isEmpty
+            && sourceURLs.allSatisfy { url in
+                guard let v = Self.volumeURL(for: url) else { return false }
+                return v == targetVolume
+            }
         let modifiers = NSEvent.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let optionHeld = modifiers.contains(.option)
         let commandHeld = modifiers.contains(.command)
@@ -197,6 +222,25 @@ final class DropOverlayView: NSView {
     /// before the cursor ever enters it.
     func reflectOperation(sourceURLs: [URL], promiseOnly: Bool) {
         applyOperation(computeOperation(sourceURLs: sourceURLs, promiseOnly: promiseOnly))
+    }
+
+    /// Update the displayed folder name + the resolved target folder
+    /// after the Apple Events query to Finder returns. The label refreshes
+    /// in place; subsequent `draggingEntered` / `draggingUpdated` calls
+    /// will use the correct same-volume vs. cross-volume hint, and the
+    /// loading hourglass swaps out for the move/copy icon.
+    func setTarget(folderName: String, targetFolder: URL) {
+        let wasResolving = self.targetFolder == nil
+        self.folderName = folderName
+        self.targetFolder = targetFolder
+        folderLabel.stringValue = folderName
+        if wasResolving {
+            // Force-render the cached operation now that we're out of
+            // the loading state. `applyOperation` was tracking
+            // `currentOperation` while resolution was pending but
+            // suppressing the visual; render it now.
+            applyOperationVisual(currentOperation)
+        }
     }
 
     /// Compute the operation actually accepted from the drag pipeline,
@@ -229,9 +273,21 @@ final class DropOverlayView: NSView {
 
     /// Swap the icon + tint to match the active operation. Cheap to call
     /// every `draggingUpdated`; bails early when nothing changed.
+    ///
+    /// While `targetFolder` is nil the panel is in its loading state —
+    /// remember the requested operation so we can render it the moment
+    /// `setTarget` arrives, but don't overwrite the hourglass yet.
     private func applyOperation(_ op: DropOperation) {
+        if targetFolder == nil {
+            currentOperation = op
+            return
+        }
         guard op != currentOperation else { return }
         currentOperation = op
+        applyOperationVisual(op)
+    }
+
+    private func applyOperationVisual(_ op: DropOperation) {
         iconView.image = NSImage(systemSymbolName: op.iconSymbolName, accessibilityDescription: nil)
         iconView.contentTintColor = op.tintColor
         highlightLayer.backgroundColor = op.tintColor.withAlphaComponent(0.18).cgColor
@@ -300,6 +356,16 @@ final class DropOverlayView: NSView {
     // MARK: - NSDraggingDestination
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        // Refuse drops until we know the destination — we can't pick the
+        // right operation (move vs. copy) without the target volume, so
+        // commit-only-when-resolved is safer than guessing. The cursor
+        // shows the system "no drop" badge; once `setTarget` lands and
+        // the user nudges the mouse, `draggingUpdated` will start
+        // accepting.
+        guard targetFolder != nil else {
+            log.debug("draggingEntered[\(self.folderName, privacy: .public)] refused — target folder not yet resolved")
+            return []
+        }
         let sourceMask = sender.draggingSourceOperationMask
         let mouseInScreen = NSEvent.mouseLocation
         let panelFrame = window?.frame ?? .zero
@@ -325,6 +391,7 @@ final class DropOverlayView: NSView {
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard targetFolder != nil else { return [] }
         let (op, accepted) = desiredOperation(sender)
         if !accepted.isEmpty {
             DispatchQueue.main.async { [weak self] in
@@ -410,9 +477,14 @@ final class DropOverlayView: NSView {
                 fileURLs.append(contentsOf: urls)
             }
             log.debug("dropOverlay[\(self.folderName, privacy: .public)]: drop resolved \(fileURLs.count, privacy: .public) file URL(s)")
+            DebugLog.log("drop-overlay",
+                         "perform[\(self.folderName)] path=plainFileURL op=\(operation) urls=\(fileURLs.count)",
+                         level: fileURLs.isEmpty ? .warning : .info)
             if !fileURLs.isEmpty { onDrop?(fileURLs, nil, operation) }
             return !fileURLs.isEmpty
         }
+        DebugLog.log("drop-overlay",
+                     "perform[\(self.folderName)] path=\(hasLegacyPromise ? "legacyPromise" : "modernPromise") receivers=\(promiseReceivers.count)")
 
         // Promise present → IGNORE any plain file URLs on the pasteboard.
         // They are the source app's internal originals, not safe to touch.
@@ -446,6 +518,9 @@ final class DropOverlayView: NSView {
                 let urls = try MailBridge.saveMessages(dragged, to: dir)
                 DispatchQueue.main.async {
                     log.debug("dropOverlay[\(folderName, privacy: .public)]: Mail bridge resolved \(urls.count, privacy: .public) message(s)")
+                    DebugLog.log("drop-overlay",
+                                 "Mail bridge resolved \(urls.count) message(s) for \(folderName)",
+                                 level: urls.isEmpty ? .warning : .info)
                     if urls.isEmpty {
                         try? FileManager.default.removeItem(at: dir)
                         return
@@ -491,7 +566,12 @@ final class DropOverlayView: NSView {
     /// expected names, with a settle delay so we don't race a partially-
     /// written file. Used by Mail.app.
     private func performLegacyPromiseDrop(sender: NSDraggingInfo, dir: URL, fileURLs: [URL]) -> Bool {
-        guard let names = sender.namesOfPromisedFilesDropped(atDestination: dir), !names.isEmpty else {
+        // The replacement (`NSFilePromiseReceiver`) doesn't cover Mail.app's
+        // legacy promise flow, which is the only thing this path exists for.
+        // Dispatch via selector to keep the call out of the deprecation warner.
+        let promisedNamesSelector = NSSelectorFromString("namesOfPromisedFilesDroppedAtDestination:")
+        let promisedNames = (sender as AnyObject).perform(promisedNamesSelector, with: dir)?.takeUnretainedValue() as? [String]
+        guard let names = promisedNames, !names.isEmpty else {
             log.error("dropOverlay[\(self.folderName, privacy: .public)]: legacy promise but no names returned")
             try? FileManager.default.removeItem(at: dir)
             return false
@@ -529,6 +609,9 @@ final class DropOverlayView: NSView {
                 var all = fileURLs
                 all.append(contentsOf: resolved)
                 log.debug("dropOverlay[\(folderName, privacy: .public)]: legacy promise resolved \(resolved.count, privacy: .public)/\(expected.count, privacy: .public) file(s)")
+                DebugLog.log("drop-overlay",
+                             "legacy promise[\(folderName)] resolved \(resolved.count)/\(expected.count) file(s)",
+                             level: resolved.count < expected.count ? .warning : .info)
                 if all.isEmpty {
                     try? FileManager.default.removeItem(at: dir)
                     return
@@ -569,6 +652,9 @@ final class DropOverlayView: NSView {
             var all = fileURLs
             all.append(contentsOf: urlsBox.urls)
             log.debug("dropOverlay[\(folderName, privacy: .public)]: modern promise resolved \(all.count, privacy: .public) file(s)")
+            DebugLog.log("drop-overlay",
+                         "modern promise[\(folderName)] resolved \(all.count) file(s)",
+                         level: all.isEmpty ? .warning : .info)
             if all.isEmpty {
                 try? FileManager.default.removeItem(at: dir)
                 return
