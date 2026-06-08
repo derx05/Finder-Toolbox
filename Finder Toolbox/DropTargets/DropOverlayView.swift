@@ -566,7 +566,12 @@ final class DropOverlayView: NSView {
     /// expected names, with a settle delay so we don't race a partially-
     /// written file. Used by Mail.app.
     private func performLegacyPromiseDrop(sender: NSDraggingInfo, dir: URL, fileURLs: [URL]) -> Bool {
-        guard let names = sender.namesOfPromisedFilesDropped(atDestination: dir), !names.isEmpty else {
+        // The replacement (`NSFilePromiseReceiver`) doesn't cover Mail.app's
+        // legacy promise flow, which is the only thing this path exists for.
+        // Dispatch via selector to keep the call out of the deprecation warner.
+        let promisedNamesSelector = NSSelectorFromString("namesOfPromisedFilesDroppedAtDestination:")
+        let promisedNames = (sender as AnyObject).perform(promisedNamesSelector, with: dir)?.takeUnretainedValue() as? [String]
+        guard let names = promisedNames, !names.isEmpty else {
             log.error("dropOverlay[\(self.folderName, privacy: .public)]: legacy promise but no names returned")
             try? FileManager.default.removeItem(at: dir)
             return false
