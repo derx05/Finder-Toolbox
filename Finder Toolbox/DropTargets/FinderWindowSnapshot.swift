@@ -35,6 +35,14 @@ struct FinderWindow: Sendable, Equatable {
 /// only the set of *visible* windows changes — which is why pairing a
 /// fast CG fetch with a long-lived folder cache gives correct results
 /// instantly even right after a Space switch.
+///
+/// No occlusion filtering is applied. `DropOverlayPanel` uses
+/// `level = .popUpMenu` (CGWindowLayer ≈ 101), which renders above all
+/// normal app windows (layer 0) including Mail, Messages, or any other
+/// drag-source app that might be covering a Finder window's corner.
+/// Filtering by whether another layer-0 window covers the anchor would
+/// incorrectly discard Finder windows whose overlay IS visible to the
+/// user (above the covering app).
 actor FinderWindowSnapshot {
 
     private let log = Logger(subsystem: "danielammann.Finder-Toolbox", category: "drop-targets")
@@ -54,26 +62,26 @@ actor FinderWindowSnapshot {
     /// Async; pairs each window ID with its target folder POSIX path via
     /// Apple Events to Finder. Cache the result long-term — the join with
     /// fresh CG entries at drag-start handles Space switches correctly.
-    func captureFolderMap() async -> [CGWindowID: (URL, String)] {
+    ///
+    /// Returns `nil` when the AE call fails (e.g. Finder is busy as the
+    /// source of a drag). The coordinator treats `nil` as "keep existing
+    /// cache" rather than overwriting with an empty map.
+    func captureFolderMap() async -> [CGWindowID: (URL, String)]? {
         do {
             let map = try queryFinderTargets()
             log.debug("captureFolderMap: \(map.count, privacy: .public) Finder window(s) cached")
             return map
         } catch {
             log.error("captureFolderMap: Apple Events FAILED: \(error.localizedDescription, privacy: .public)")
-            return [:]
+            return nil
         }
     }
 
     // MARK: - CGWindowList side
 
     /// Visible Finder windows from `CGWindowListCopyWindowInfo`, in
-    /// front-to-back z-order, with desktop and minimized windows filtered
-    /// out, and Finder windows whose bottom-right anchor area is covered
-    /// by a higher-z window (from any app) skipped — those windows can't
-    /// meaningfully host an overlay because the user couldn't see or hit
-    /// it. The overlay anchor is the bottom-right region matching
-    /// `DropOverlayPanel.panelSize` inset by `DropOverlayPanel.cornerInset`.
+    /// front-to-back z-order, with desktop, minimized, and fully-transparent
+    /// windows filtered out. No occlusion check — see class comment.
     nonisolated private static func qualifyingCGWindowsRaw() -> [CGEntry] {
         let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
         guard let infos = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
@@ -81,30 +89,19 @@ actor FinderWindowSnapshot {
         }
 
         var entries: [CGEntry] = []
-        var aboveRects: [NSRect] = []  // rects of windows in front of the current one
 
         for info in infos {
             guard let layer = info[kCGWindowLayer as String] as? Int, layer == 0 else { continue }
             if let alpha = info[kCGWindowAlpha as String] as? Double, alpha == 0 { continue }
             guard let boundsDict = info[kCGWindowBounds as String] as? [String: Any],
                   let bounds = CGRect(dictionaryRepresentation: boundsDict as CFDictionary) else { continue }
-
+            guard let owner = info[kCGWindowOwnerName as String] as? String,
+                  owner == "Finder",
+                  let id = info[kCGWindowNumber as String] as? CGWindowID else { continue }
             // CGWindowList bounds are in CG coords (origin top-left of the
             // primary screen). Convert to Cocoa coords (origin bottom-left)
             // by flipping against the primary screen height.
-            let cocoaRect = Self.cocoaFrame(fromCGBounds: bounds)
-
-            let owner = info[kCGWindowOwnerName as String] as? String
-            if owner == "Finder", let id = info[kCGWindowNumber as String] as? CGWindowID {
-                let anchor = anchorRect(in: cocoaRect)
-                let occluded = aboveRects.contains { $0.intersects(anchor) }
-                if !occluded {
-                    entries.append(CGEntry(id: id, rect: cocoaRect))
-                }
-            }
-            // Every layer-0 window — Finder or otherwise — contributes to
-            // occlusion for the windows behind it.
-            aboveRects.append(cocoaRect)
+            entries.append(CGEntry(id: id, rect: Self.cocoaFrame(fromCGBounds: bounds)))
         }
         return entries
     }
@@ -137,21 +134,6 @@ actor FinderWindowSnapshot {
             }
         }
         return nil
-    }
-
-    /// Mirrors `DropOverlayPanel.overlayFrame(for:)` for the bottom-right
-    /// anchor (without the screen clamp — occlusion is a window-space
-    /// concern). Kept here rather than importing the panel type so this
-    /// stays a leaf utility.
-    nonisolated private static func anchorRect(in windowRect: NSRect) -> NSRect {
-        let size = NSSize(width: 210, height: 58)
-        let inset: CGFloat = 10
-        return NSRect(
-            x: windowRect.maxX - size.width - inset,
-            y: windowRect.minY + inset,
-            width: size.width,
-            height: size.height
-        )
     }
 
     nonisolated private static func cocoaFrame(fromCGBounds cg: CGRect) -> NSRect {

@@ -486,6 +486,27 @@ final class DropOverlayView: NSView {
         DebugLog.log("drop-overlay",
                      "perform[\(self.folderName)] path=\(hasLegacyPromise ? "legacyPromise" : "modernPromise") receivers=\(promiseReceivers.count)")
 
+        // Mail attachment drags (non-message drags from the mail viewer)
+        // put both a legacy promise AND a real file URL in Mail's sandbox
+        // container on the pasteboard. The legacy promise only fulfils
+        // against Finder — calling namesOfPromisedFilesDropped against
+        // our overlay returns a filename but Mail never writes the file.
+        // The file is already extracted in Mail Downloads, so read it
+        // directly for a copy instead of waiting for a promise that won't land.
+        if hasLegacyPromise {
+            let direct = (pb.readObjects(forClasses: [NSURL.self],
+                                         options: [.urlReadingFileURLsOnly: true]) as? [URL]) ?? []
+            let mailContainerPrefix = URL(fileURLWithPath: NSHomeDirectory())
+                .appendingPathComponent("Library/Containers/com.apple.mail").path
+            let extracted = direct.filter { $0.standardizedFileURL.path.hasPrefix(mailContainerPrefix) }
+            if !extracted.isEmpty {
+                DebugLog.log("drop-overlay",
+                             "perform[\(self.folderName)] path=mailAttachment op=copy urls=\(extracted.count)")
+                onDrop?(extracted, nil, .copy)
+                return true
+            }
+        }
+
         // Promise present → IGNORE any plain file URLs on the pasteboard.
         // They are the source app's internal originals, not safe to touch.
         let fileURLs: [URL] = []

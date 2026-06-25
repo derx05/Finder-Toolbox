@@ -1,0 +1,149 @@
+2026-06-08T08:26:45.729Z [INFO] drop-targets: drag started — sources=1 promiseOnly=false urls=[/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Elektrik - PV/Pläne/2026-06-03 Pläne LED Leisten/LED Planung.xlsx]
+2026-06-08T08:26:45.808Z [INFO] drop-targets: drag started — cgWindows=2 panels=2 cacheHits=1 hoverGated=false
+2026-06-08T08:26:45.808Z [INFO] drop-targets:   panel: id=89916 rect={{0, 0}, {1280, 1410}} folder=<pending>
+2026-06-08T08:26:45.808Z [INFO] drop-targets:   panel: id=80241 rect={{-2560, 0}, {1280, 1410}} folder=/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Schreiner (Mayer Oberstdorf)/Küche
+2026-06-08T08:26:46.307Z [INFO] drop-targets: drag ended
+2026-06-08T08:30:45.732Z [INFO] drop-targets: drag started — sources=0 promiseOnly=true urls=[]
+2026-06-08T08:30:45.798Z [INFO] drop-targets: drag started — cgWindows=2 panels=2 cacheHits=2 hoverGated=false
+2026-06-08T08:30:45.798Z [INFO] drop-targets:   panel: id=89916 rect={{0, 0}, {1280, 1410}} folder=/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Elektrik - PV
+2026-06-08T08:30:45.798Z [INFO] drop-targets:   panel: id=80241 rect={{-2560, 0}, {1280, 1410}} folder=/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Schreiner (Mayer Oberstdorf)/Küche
+2026-06-08T08:30:45.924Z [INFO] drop-targets: folder map resolved — 2 panel(s) kept, 2 AE entries
+2026-06-08T08:30:48.436Z [INFO] drop-targets: drag ended
+2026-06-08T08:30:49.302Z [INFO] drop-overlay: Mail bridge resolved 1 message(s) for Elektrik - PV
+2026-06-08T08:31:45.141Z [INFO] drop-targets: drag started — sources=0 promiseOnly=true urls=[]
+2026-06-08T08:31:45.203Z [INFO] drop-targets: drag started — cgWindows=2 panels=2 cacheHits=2 hoverGated=false
+2026-06-08T08:31:45.203Z [INFO] drop-targets:   panel: id=89916 rect={{0, 0}, {1280, 1410}} folder=/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Elektrik - PV
+2026-06-08T08:31:45.203Z [INFO] drop-targets:   panel: id=80241 rect={{-2560, 0}, {1280, 1410}} folder=/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Schreiner (Mayer Oberstdorf)/Küche
+2026-06-08T08:31:45.312Z [INFO] drop-targets: folder map resolved — 2 panel(s) kept, 2 AE entries
+2026-06-08T08:31:46.658Z [INFO] drop-targets: drag ended
+2026-06-08T08:31:47.426Z [INFO] drop-overlay: Mail bridge resolved 1 message(s) for Elektrik - PV
+2026-06-08T08:31:47.426Z [INFO] drop-targets: drop accepted on "Elektrik - PV" — 1 file(s) op=copy target=/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Elektrik - PV urls=[Ammann Rohrmoos - Angebot für Teileliste.eml]
+2026-06-08T08:31:47.426Z [INFO] perform-drop: start — 1 item(s) op=copy → /Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Elektrik - PV
+2026-06-08T08:31:48.399Z [INFO] perform-drop: executor done — renamed=1 skipped=0 failed=0
+2026-06-08T08:31:56.428Z [INFO] drop-targets: drag ended
+2026-06-08T08:32:40.633Z [INFO] drop-targets: drag started — sources=1 promiseOnly=true urls=[/Users/daniel/Library/Containers/com.apple.mail/Data/Library/Mail Downloads/0E02A049-2874-4989-81BC-91BD7233FCEE/000140220260608090801.pdf]
+2026-06-08T08:32:40.673Z [INFO] drop-targets: drag started — cgWindows=2 panels=2 cacheHits=2 hoverGated=false
+2026-06-08T08:32:40.673Z [INFO] drop-targets:   panel: id=89916 rect={{0, 0}, {1280, 1410}} folder=/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Elektrik - PV
+2026-06-08T08:32:40.673Z [INFO] drop-targets:   panel: id=80241 rect={{-2560, 0}, {1280, 1410}} folder=/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Schreiner (Mayer Oberstdorf)/Küche
+2026-06-08T08:32:40.760Z [INFO] drop-targets: folder map resolved — 2 panel(s) kept, 2 AE entries
+2026-06-08T08:32:42.359Z [INFO] drop-targets: drag ended
+2026-06-08T08:32:42.397Z [INFO] drop-overlay: perform[Regieberichte] path=plainFileURL op=copy urls=1
+2026-06-08T08:32:42.397Z [INFO] drop-targets: drop accepted on "Regieberichte" — 1 file(s) op=copy target=/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Elektrik - PV/Elektro Kirsch/Regieberichte urls=[000140220260608090801.pdf]
+2026-06-08T08:32:42.397Z [INFO] perform-drop: start — 1 item(s) op=copy → /Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Elektrik - PV/Elektro Kirsch/Regieberichte
+2026-06-08T08:32:43.283Z [INFO] perform-drop: executor done — renamed=1 skipped=0 failed=0
+2026-06-08T08:33:51.599Z [INFO] drop-targets: drag ended
+2026-06-08T08:33:51.599Z [INFO] drop-targets: drag started — sources=1 promiseOnly=false urls=[/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Elektrik - PV/Elektro Kirsch/Regieberichte/2026-06-08 Ammann Regiebericht Herz 218461 KW 22 + 23.pdf]
+2026-06-08T08:33:51.649Z [INFO] drop-targets: drag started — cgWindows=2 panels=2 cacheHits=2 hoverGated=false
+2026-06-08T08:33:51.650Z [INFO] drop-targets:   panel: id=89916 rect={{0, 0}, {1280, 1410}} folder=/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Elektrik - PV/Elektro Kirsch/Regieberichte
+2026-06-08T08:33:51.650Z [INFO] drop-targets:   panel: id=80241 rect={{-2560, 0}, {1280, 1410}} folder=/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Schreiner (Mayer Oberstdorf)/Küche
+2026-06-08T08:33:53.091Z [INFO] drop-targets: drag ended
+2026-06-08T09:11:39.736Z [INFO] drop-targets: drag ended
+2026-06-08T09:11:40.128Z [INFO] drop-targets: drag ended
+2026-06-08T09:23:31.994Z [INFO] drop-targets: drag started — sources=1 promiseOnly=false urls=[/Users/daniel/Library/Mobile Documents/iCloud~com~apple~configurator~ui/Documents/VPNs/Ammann - VPN - Germane - ivonne VPNoD.mobileconfig]
+2026-06-08T09:23:32.028Z [INFO] drop-targets: drag started — cgWindows=1 panels=1 cacheHits=0 hoverGated=false
+2026-06-08T09:23:32.028Z [INFO] drop-targets:   panel: id=90319 rect={{-2560, 0}, {1280, 1410}} folder=<pending>
+2026-06-08T09:23:32.556Z [INFO] drop-targets: drag ended
+2026-06-08T09:24:20.723Z [INFO] drop-targets: drag started — sources=1 promiseOnly=false urls=[/Users/daniel/Library/Mobile Documents/iCloud~com~apple~configurator~ui/Documents/Nextcloud Contacts/CardDAV Refugis ivonne.mobileconfig]
+2026-06-08T09:24:20.742Z [INFO] drop-targets: drag started — cgWindows=1 panels=1 cacheHits=1 hoverGated=false
+2026-06-08T09:24:20.742Z [INFO] drop-targets:   panel: id=90319 rect={{-2560, 0}, {1280, 1410}} folder=/Users/daniel/Library/Mobile Documents/iCloud~com~apple~configurator~ui/Documents
+2026-06-08T09:24:21.324Z [INFO] drop-targets: drag ended
+2026-06-08T10:06:10.558Z [INFO] drop-targets: drag started — sources=1 promiseOnly=false urls=[/Users/daniel/Library/Mobile Documents/iCloud~com~apple~configurator~ui/Documents/Refugis Mail post.mobileconfig]
+2026-06-08T10:06:10.595Z [INFO] drop-targets: drag started — cgWindows=1 panels=1 cacheHits=1 hoverGated=false
+2026-06-08T10:06:10.595Z [INFO] drop-targets:   panel: id=90319 rect={{-2560, 0}, {1280, 1410}} folder=/Users/daniel/Library/Mobile Documents/iCloud~com~apple~configurator~ui/Documents
+2026-06-08T10:06:11.116Z [INFO] drop-targets: drag ended
+2026-06-08T10:09:27.839Z [INFO] drop-targets: drag started — sources=1 promiseOnly=false urls=[/Users/daniel/Library/Mobile Documents/iCloud~com~apple~configurator~ui/Documents/Refugis Mail post (DA).mobileconfig]
+2026-06-08T10:09:27.848Z [INFO] drop-targets: drag started — cgWindows=1 panels=1 cacheHits=1 hoverGated=false
+2026-06-08T10:09:27.848Z [INFO] drop-targets:   panel: id=90319 rect={{-2560, 0}, {1280, 1410}} folder=/Users/daniel/Library/Mobile Documents/iCloud~com~apple~configurator~ui/Documents
+2026-06-08T10:09:29.204Z [INFO] drop-targets: drag ended
+2026-06-08T10:59:49.465Z [INFO] drop-targets: drag started — sources=1 promiseOnly=false urls=[/Users/daniel/Library/Messages/Attachments/ae/14/EC55AE28-2751-4573-95FA-1178C1308418/Estate Management Platform (DE).pdf]
+2026-06-08T10:59:49.473Z [INFO] drop-targets: drag started — cgWindows=0 panels=0 cacheHits=0 hoverGated=false
+2026-06-08T10:59:49.640Z [INFO] drop-targets: folder map resolved — 0 panel(s) kept, 3 AE entries
+2026-06-08T10:59:51.069Z [INFO] drop-targets: drag ended
+2026-06-08T11:09:00.463Z [INFO] drop-targets: drag started — sources=1 promiseOnly=false urls=[/Users/daniel/Library/Mobile Documents/iCloud~com~apple~configurator~ui/Documents/Refugis Mail post (DA).mobileconfig]
+2026-06-08T11:09:00.498Z [INFO] drop-targets: drag started — cgWindows=1 panels=1 cacheHits=1 hoverGated=false
+2026-06-08T11:09:00.498Z [INFO] drop-targets:   panel: id=80241 rect={{-2560, 0}, {1280, 1410}} folder=/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Schreiner (Mayer Oberstdorf)/Küche
+2026-06-08T11:09:00.844Z [INFO] drop-targets: drag ended
+2026-06-08T12:40:47.359Z [INFO] drop-targets: drag started — sources=1 promiseOnly=false urls=[/Users/daniel/Library/Messages/Attachments/ae/14/EC55AE28-2751-4573-95FA-1178C1308418/Estate Management Platform (DE).pdf]
+2026-06-08T12:40:47.388Z [INFO] drop-targets: drag started — cgWindows=1 panels=1 cacheHits=0 hoverGated=false
+2026-06-08T12:40:47.388Z [INFO] drop-targets:   panel: id=95665 rect={{0, 0}, {1280, 1410}} folder=<pending>
+2026-06-08T12:40:47.589Z [INFO] drop-targets: folder map resolved — 1 panel(s) kept, 4 AE entries
+2026-06-08T12:40:48.426Z [INFO] drop-targets: drag ended
+2026-06-08T12:55:44.100Z [INFO] drop-targets: drag started — sources=1 promiseOnly=false urls=[/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Elektrik - PV/Zählung Schaltschränke/2026-05-31 Loxone Zählung.xlsx]
+2026-06-08T12:55:44.146Z [INFO] drop-targets: drag started — cgWindows=2 panels=2 cacheHits=2 hoverGated=false
+2026-06-08T12:55:44.146Z [INFO] drop-targets:   panel: id=93066 rect={{0, 0}, {1280, 1410}} folder=/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Schreiner (Mayer Oberstdorf)/Bäder
+2026-06-08T12:55:44.146Z [INFO] drop-targets:   panel: id=80241 rect={{-2560, 0}, {1280, 1410}} folder=/Users/daniel/Library/Mobile Documents/iCloud~com~apple~configurator~ui/Documents/Mail
+2026-06-08T12:55:44.533Z [INFO] drop-targets: drag ended
+2026-06-08T20:41:41.435Z [INFO] drop-targets: drag started — sources=1 promiseOnly=false urls=[/Users/daniel/Downloads/Xcode-beta.app]
+2026-06-08T20:41:41.453Z [INFO] drop-targets: drag started — cgWindows=1 panels=1 cacheHits=0 hoverGated=false
+2026-06-08T20:41:41.453Z [INFO] drop-targets:   panel: id=103820 rect={{864, 0}, {864, 1084}} folder=<pending>
+2026-06-08T20:41:42.497Z [INFO] drop-targets: drag ended
+2026-06-08T20:51:22.529Z [INFO] drop-targets: drag started — sources=1 promiseOnly=false urls=[/Volumes/Icon Composer/Icon Composer.app]
+2026-06-08T20:51:22.559Z [INFO] drop-targets: drag started — cgWindows=2 panels=2 cacheHits=0 hoverGated=false
+2026-06-08T20:51:22.559Z [INFO] drop-targets:   panel: id=104159 rect={{0, 494}, {705, 590}} folder=<pending>
+2026-06-08T20:51:22.559Z [INFO] drop-targets:   panel: id=104158 rect={{864, 0}, {864, 1084}} folder=<pending>
+2026-06-08T20:51:24.969Z [INFO] drop-targets: drag ended
+2026-06-08T20:51:29.409Z [INFO] drop-targets: drag started — sources=1 promiseOnly=false urls=[/Volumes/Icon Composer/Icon Composer.app]
+2026-06-08T20:51:29.447Z [INFO] drop-targets: drag started — cgWindows=2 panels=2 cacheHits=2 hoverGated=false
+2026-06-08T20:51:29.447Z [INFO] drop-targets:   panel: id=104159 rect={{0, 494}, {705, 590}} folder=/Volumes/Icon Composer
+2026-06-08T20:51:29.447Z [INFO] drop-targets:   panel: id=104158 rect={{864, 0}, {864, 1084}} folder=/Users/daniel/Downloads
+2026-06-08T20:51:29.756Z [INFO] drop-targets: drag ended
+2026-06-08T20:51:40.656Z [INFO] drop-targets: drag started — sources=1 promiseOnly=false urls=[/Users/daniel/Downloads/Icon Composer-beta.app]
+2026-06-08T20:51:40.695Z [INFO] drop-targets: drag started — cgWindows=1 panels=1 cacheHits=1 hoverGated=false
+2026-06-08T20:51:40.695Z [INFO] drop-targets:   panel: id=104158 rect={{864, 0}, {864, 1084}} folder=/Users/daniel/Downloads
+2026-06-08T20:51:41.452Z [INFO] drop-targets: drag ended
+2026-06-09T14:39:33.777Z [INFO] drop-targets: drag ended
+2026-06-09T14:39:36.108Z [INFO] drop-targets: drag ended
+2026-06-09T17:29:30.985Z [INFO] drop-targets: drag started — sources=1 promiseOnly=true urls=[/Users/daniel/Library/Containers/com.apple.mail/Data/Library/Mail Downloads/722960F6-C7DB-478D-9B3E-75F07FE86708/Angebot-19911163-i4 M60 xDrive Gran Coupé-Daniel Ammann.pdf]
+2026-06-09T17:29:31.027Z [INFO] drop-targets: drag started — cgWindows=0 panels=0 cacheHits=0 hoverGated=false
+2026-06-09T17:29:31.059Z [INFO] drop-targets: folder map resolved — 0 panel(s) kept, 0 AE entries
+2026-06-09T17:29:34.714Z [INFO] drop-targets: drag ended
+2026-06-09T17:29:37.236Z [INFO] drop-targets: drag started — sources=1 promiseOnly=true urls=[/Users/daniel/Library/Containers/com.apple.mail/Data/Library/Mail Downloads/722960F6-C7DB-478D-9B3E-75F07FE86708/Angebot-19911163-i4 M60 xDrive Gran Coupé-Daniel Ammann.pdf]
+2026-06-09T17:29:37.237Z [INFO] drop-targets: drag started — cgWindows=0 panels=0 cacheHits=0 hoverGated=false
+2026-06-09T17:29:37.260Z [INFO] drop-targets: folder map resolved — 0 panel(s) kept, 0 AE entries
+2026-06-09T17:29:41.132Z [INFO] drop-targets: drag ended
+2026-06-09T17:29:43.464Z [INFO] drop-targets: drag started — sources=1 promiseOnly=true urls=[/Users/daniel/Library/Containers/com.apple.mail/Data/Library/Mail Downloads/722960F6-C7DB-478D-9B3E-75F07FE86708/Angebot-19911163-i4 M60 xDrive Gran Coupé-Daniel Ammann.pdf]
+2026-06-09T17:29:43.467Z [INFO] drop-targets: drag started — cgWindows=0 panels=0 cacheHits=0 hoverGated=false
+2026-06-09T17:29:43.499Z [INFO] drop-targets: folder map resolved — 0 panel(s) kept, 0 AE entries
+2026-06-09T17:29:46.549Z [INFO] drop-targets: drag ended
+2026-06-09T17:29:49.060Z [INFO] drop-targets: drag started — sources=1 promiseOnly=true urls=[/Users/daniel/Library/Containers/com.apple.mail/Data/Library/Mail Downloads/722960F6-C7DB-478D-9B3E-75F07FE86708/Angebot-19911163-i4 M60 xDrive Gran Coupé-Daniel Ammann.pdf]
+2026-06-09T17:29:49.062Z [INFO] drop-targets: drag started — cgWindows=0 panels=0 cacheHits=0 hoverGated=false
+2026-06-09T17:29:49.090Z [INFO] drop-targets: folder map resolved — 0 panel(s) kept, 0 AE entries
+2026-06-09T17:29:49.506Z [INFO] drop-targets: drag ended
+2026-06-09T17:29:51.677Z [INFO] drop-targets: drag started — sources=1 promiseOnly=true urls=[/Users/daniel/Library/Containers/com.apple.mail/Data/Library/Mail Downloads/722960F6-C7DB-478D-9B3E-75F07FE86708/Angebot-19911163-i4 M60 xDrive Gran Coupé-Daniel Ammann.pdf]
+2026-06-09T17:29:51.678Z [INFO] drop-targets: drag started — cgWindows=0 panels=0 cacheHits=0 hoverGated=false
+2026-06-09T17:29:51.707Z [INFO] drop-targets: folder map resolved — 0 panel(s) kept, 0 AE entries
+2026-06-09T17:29:52.134Z [INFO] drop-targets: drag ended
+2026-06-09T17:29:55.008Z [INFO] drop-targets: drag started — sources=1 promiseOnly=false urls=[/Users/daniel/Desktop/Angebot-19911163-i4 M60 xDrive Gran Coupé-Daniel Ammann.pdf]
+2026-06-09T17:29:55.010Z [INFO] drop-targets: drag started — cgWindows=0 panels=0 cacheHits=0 hoverGated=false
+2026-06-09T17:29:57.458Z [INFO] drop-targets: drag ended
+2026-06-09T17:30:05.679Z [INFO] drop-targets: drag started — sources=1 promiseOnly=false urls=[/Users/daniel/Desktop/Angebot-19911163-i4 M60 xDrive Gran Coupé-Daniel Ammann.pdf]
+2026-06-09T17:30:05.683Z [INFO] drop-targets: drag started — cgWindows=0 panels=0 cacheHits=0 hoverGated=false
+2026-06-09T17:30:06.231Z [INFO] drop-targets: drag ended
+2026-06-10T07:50:56.973Z [INFO] drop-targets: drag ended
+2026-06-10T07:55:42.743Z [INFO] drop-targets: drag ended
+2026-06-10T07:55:48.126Z [INFO] drop-targets: drag started — sources=1 promiseOnly=false urls=[/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Elektrik - PV/Pläne/2026-06-03 Pläne LED Leisten/Ammann LED Planung 2026_06_10.xlsx]
+2026-06-10T07:55:48.186Z [INFO] drop-targets: drag started — cgWindows=1 panels=1 cacheHits=1 hoverGated=false
+2026-06-10T07:55:48.186Z [INFO] drop-targets:   panel: id=120335 rect={{0, 0}, {1280, 1410}} folder=/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Elektrik - PV/Pläne/2026-06-03 Pläne LED Leisten
+2026-06-10T07:55:49.188Z [INFO] drop-targets: drag ended
+2026-06-10T07:55:49.203Z [INFO] drop-overlay: perform[2026-06-03 Pläne LED Leisten] path=plainFileURL op=move urls=1
+2026-06-10T07:55:49.203Z [INFO] drop-targets: drop accepted on "2026-06-03 Pläne LED Leisten" — 1 file(s) op=move target=/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Elektrik - PV/Pläne/2026-06-03 Pläne LED Leisten urls=[Ammann LED Planung 2026_06_10.xlsx]
+2026-06-10T07:55:49.204Z [INFO] perform-drop: start — 1 item(s) op=move → /Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Elektrik - PV/Pläne/2026-06-03 Pläne LED Leisten
+2026-06-10T07:55:49.381Z [INFO] perform-drop: executor done — renamed=1 skipped=0 failed=0
+2026-06-10T08:33:53.827Z [INFO] drop-targets: drag started — sources=0 promiseOnly=true urls=[]
+2026-06-10T08:33:53.892Z [INFO] drop-targets: drag started — cgWindows=1 panels=1 cacheHits=1 hoverGated=false
+2026-06-10T08:33:53.892Z [INFO] drop-targets:   panel: id=120335 rect={{0, 0}, {1280, 1410}} folder=/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Elektrik - PV/Pläne/2026-06-03 Pläne LED Leisten
+2026-06-10T08:33:53.998Z [INFO] drop-targets: folder map resolved — 1 panel(s) kept, 1 AE entries
+2026-06-10T08:33:56.225Z [INFO] drop-targets: drag ended
+2026-06-10T08:33:59.720Z [INFO] drop-overlay: Mail bridge resolved 1 message(s) for Korrespondenz
+2026-06-10T08:34:08.210Z [INFO] drop-targets: drag started — sources=0 promiseOnly=true urls=[]
+2026-06-10T08:34:08.242Z [INFO] drop-targets: drag started — cgWindows=1 panels=1 cacheHits=1 hoverGated=false
+2026-06-10T08:34:08.242Z [INFO] drop-targets:   panel: id=120335 rect={{0, 0}, {1280, 1410}} folder=/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Elektrik - PV/Elektro Kirsch/Korrespondenz
+2026-06-10T08:34:08.315Z [INFO] drop-targets: folder map resolved — 1 panel(s) kept, 1 AE entries
+2026-06-10T08:34:09.220Z [INFO] drop-targets: drag ended
+2026-06-10T08:34:12.383Z [INFO] drop-overlay: Mail bridge resolved 1 message(s) for Korrespondenz
+2026-06-10T08:34:16.442Z [INFO] drop-targets: drag started — sources=0 promiseOnly=true urls=[]
+2026-06-10T08:34:16.460Z [INFO] drop-targets: drag started — cgWindows=1 panels=1 cacheHits=1 hoverGated=false
+2026-06-10T08:34:16.460Z [INFO] drop-targets:   panel: id=120335 rect={{0, 0}, {1280, 1410}} folder=/Volumes/Refugis-Immobilien/20 Immobilien/Oberstdorf Rohrmooser Straße 21/00 Renovierung/05 Gewerke : Handwerker/Elektrik - PV/Elektro Kirsch/Korrespondenz
+2026-06-10T08:34:16.545Z [INFO] drop-targets: folder map resolved — 1 panel(s) kept, 1 AE entries
+2026-06-10T08:34:18.139Z [INFO] drop-targets: drag ended
+2026-06-10T08:34:21.525Z [INFO] drop-overlay: Mail bridge resolved 1 message(s) for Korrespondenz

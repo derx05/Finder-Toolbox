@@ -1,12 +1,60 @@
 import AppKit
 import OSLog
 
-/// Orchestrates the drag-time overlay feature: subscribes to
-/// `DragSessionMonitor`, snapshots Finder windows when a file drag
-/// begins, shows one overlay panel per qualifying window, and hides
-/// everything on drag-end.
+/// Orchestrates the drag-time overlay feature.
 ///
-/// Single instance, main-actor isolated.
+/// ## Detection and processing pipeline
+///
+/// ### Phase 1 — Drag detection (DragSessionMonitor, synchronous)
+/// A global NSEvent monitor watches leftMouseDown / leftMouseDragged /
+/// leftMouseUp for all apps via a three-state machine (idle → armed →
+/// active). On leftMouseDown the drag-pasteboard changeCount is
+/// snapshotted. On the first leftMouseDragged where changeCount has
+/// advanced, the source wrote the pasteboard (beginDraggingSession
+/// fired). If the pasteboard has file or promise types, onDragStarted
+/// fires. Lag from beginDraggingSession to onDragStarted is one
+/// leftMouseDragged tick, typically <16 ms.
+///
+/// ### Phase 2 — CGWindowList snapshot (handleDragStarted, synchronous, ~2 ms)
+/// CGWindowListCopyWindowInfo enumerates all on-screen layer-0 windows
+/// and filters to owner == "Finder", giving [(windowID, screenRect)] for
+/// every browser window visible on the current Space. For each window:
+///   - cache hit  → panel created immediately with the correct label
+///   - cache miss → panel created in "loading" state (hourglass)
+/// All panels are ordered front before the function returns. Overlays
+/// appear within ~5 ms of the drag starting.
+///
+/// ### Phase 3 — Apple Events folder lookup (async, ~100–300 ms)
+/// refreshFolderMap() runs `every Finder window … URL of (target of w)
+/// … id of w` via AppleScript on the FinderWindowSnapshot actor (off
+/// main thread, serialized). The result updates folderByID and patches
+/// any pending / stale panels in place via applyFolderMap.
+///
+/// Hard constraint: if Finder is the drag source its event loop is
+/// occupied by the drag session and it will not answer Apple Events.
+/// The AE call returns nil, the cache is preserved, and panels carry
+/// whatever was cached before the drag started.
+///
+/// ### The cache (folderByID)
+/// Long-lived map of CGWindowID → (folder URL, window title). Refreshed:
+///   - at startup                  one-shot warm for first Finder-source drag
+///   - at drag-end                 catches navigation during the drag
+///   - at drag-start (re-attempt)  only lands if Finder is not the source
+///   - Finder deactivates          user navigated then switched to Mail/etc.
+///   - Finder activates            user switched back after navigating elsewhere
+/// A nil AE result never overwrites the cache.
+///
+/// ### Known gap: switch folder → immediately drag from Finder
+/// 1. Drag N ends → drag-end refreshFolderMap starts (async AE).
+/// 2. User navigates Finder to Folder B (Finder stays frontmost —
+///    no activate/deactivate fires, no event we can observe).
+/// 3. User starts drag N+1 from Finder before step 1's AE returns.
+/// 4. handleDragStarted → cache hit → shows old Folder A label.
+/// 5. Drag-start refreshFolderMap → Finder busy as source → nil → no update.
+/// 6. Drag N+1 ends → drag-end refresh → Finder answers → cache correct.
+/// Result: overlay label during drag N+1 is wrong; the drag AFTER that
+/// is correct. The only fix would be kAXTitleChangedNotification on
+/// Finder's AXUIElement, which requires Accessibility permissions.
 @MainActor
 final class DropTargetsCoordinator {
     static let shared = DropTargetsCoordinator()
@@ -35,20 +83,24 @@ final class DropTargetsCoordinator {
     private var hoverMonitorLocal: Any?
 
     /// Long-lived map of Finder window IDs to (folder, title). Refreshed
-    /// at startup (once), at drag-end (catches any navigation since the
-    /// last refresh), and re-attempted at drag-start (only useful for
-    /// non-Finder drag sources — Mail, Safari, Photos — because Finder's
-    /// event loop is occupied while it's the source of a drag and won't
-    /// answer Apple Events until the drag ends).
+    /// at startup, at drag-end, at drag-start (re-attempted; only lands
+    /// for non-Finder drag sources — Finder won't answer AE while it's
+    /// the drag source), and whenever Finder activates or deactivates
+    /// (catches inter-drag navigation without polling).
     ///
     /// The AE script enumerates `every Finder window` regardless of
     /// Space, so a single call covers every Finder browser the user has
     /// open. Space switches mid-drag re-apply this map to the new
     /// visible set without needing a second round-trip.
+    ///
+    /// A failed AE call (nil from captureFolderMap) does NOT overwrite
+    /// this map — the previous entries carry the drag instead.
     private var folderByID: [CGWindowID: (URL, String)] = [:]
 
     private var folderResolutionTask: Task<Void, Never>?
     private var spaceObserver: NSObjectProtocol?
+    private var finderActivateObserver: NSObjectProtocol?
+    private var finderDeactivateObserver: NSObjectProtocol?
     private(set) var isRunning = false
 
     private init() {}
@@ -74,12 +126,41 @@ final class DropTargetsCoordinator {
             }
         }
 
+        // Refresh the folder cache whenever Finder gains or loses focus.
+        // Activation: user may have navigated in another Space or background
+        // Finder window before switching back. Deactivation: user navigated
+        // in Finder then switched to Mail/Photos/etc. to start a drag — by
+        // the time the drag fires the cache will be fresh. Both are gated on
+        // !dragActive so we don't cancel a useful in-flight drag-start AE.
+        let handleFinderSwitch: (Notification) -> Void = { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.isRunning, !self.dragActive else { return }
+                self.refreshFolderMap()
+            }
+        }
+        let wsNC = NSWorkspace.shared.notificationCenter
+        finderActivateObserver = wsNC.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil, queue: .main
+        ) { note in
+            guard (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?
+                    .bundleIdentifier == "com.apple.finder" else { return }
+            handleFinderSwitch(note)
+        }
+        finderDeactivateObserver = wsNC.addObserver(
+            forName: NSWorkspace.didDeactivateApplicationNotification,
+            object: nil, queue: .main
+        ) { note in
+            guard (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?
+                    .bundleIdentifier == "com.apple.finder" else { return }
+            handleFinderSwitch(note)
+        }
+
         // One-shot warm of the folder cache. The very first drag after
         // launch is otherwise broken when its source is Finder itself
         // (Desktop, iCloud Drive, any Finder window) — Finder won't
         // answer Apple Events during one of its own drags, so we need
-        // the cache pre-populated. After this initial warm the cache is
-        // refreshed only at drag boundaries (no background polling).
+        // the cache pre-populated.
         refreshFolderMap()
 
         log.info("DropTargetsCoordinator started")
@@ -93,10 +174,13 @@ final class DropTargetsCoordinator {
         monitor.onDragStarted = nil
         monitor.onDragEnded = nil
 
-        if let spaceObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(spaceObserver)
-        }
+        let wsNC = NSWorkspace.shared.notificationCenter
+        if let spaceObserver { wsNC.removeObserver(spaceObserver) }
         spaceObserver = nil
+        if let finderActivateObserver { wsNC.removeObserver(finderActivateObserver) }
+        finderActivateObserver = nil
+        if let finderDeactivateObserver { wsNC.removeObserver(finderDeactivateObserver) }
+        finderDeactivateObserver = nil
 
         folderResolutionTask?.cancel()
         folderResolutionTask = nil
@@ -186,6 +270,10 @@ final class DropTargetsCoordinator {
         folderResolutionTask = Task { @MainActor [weak self] in
             let map = await snapshot.captureFolderMap()
             guard let self, !Task.isCancelled else { return }
+            // nil means AE failed (Finder busy / drag source). Keep the
+            // existing cache rather than overwriting with an empty map —
+            // a subsequent refresh (drag-end or app-switch) will catch up.
+            guard let map else { return }
             self.folderByID = map
             if self.dragActive { self.applyFolderMap(map) }
         }
