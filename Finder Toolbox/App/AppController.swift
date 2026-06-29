@@ -264,12 +264,13 @@ final class AppController: ObservableObject {
     /// overlay through the same naming + Finder Apple Events plumbing the
     /// hotkey path uses, just with an explicit destination folder instead
     /// of an in-place rename.
-    func performDrop(urls: [URL], into targetFolder: URL, operation: DropOperation) async {
+    @discardableResult
+    func performDrop(urls: [URL], into targetFolder: URL, operation: DropOperation) async -> DropOutcome {
         guard !urls.isEmpty, !isRenaming else {
             DebugLog.log("perform-drop",
                          "skipped — empty=\(urls.isEmpty) busy=\(isRenaming)",
                          level: .warning)
-            return
+            return .cancelled
         }
         isRenaming = true
         defer { isRenaming = false }
@@ -294,7 +295,7 @@ final class AppController: ObservableObject {
                                           failed: [(targetFolder, "Full Disk Access required")],
                                           skipped: 0)
             SummaryDialog.showFullDiskAccessRequired()
-            return
+            return .failed
         }
 
         // Same proactive TCC check, but for sources living inside another
@@ -314,7 +315,7 @@ final class AppController: ObservableObject {
                                           failed: [(gatedSource, "Full Disk Access required")],
                                           skipped: 0)
             SummaryDialog.showFullDiskAccessRequired()
-            return
+            return .failed
         }
 
         // Resolve folder-mode + folder-scope from the file-renamer prefs
@@ -345,7 +346,7 @@ final class AppController: ObservableObject {
                 switch FolderModeDialog.askFolderMode(folderCount: folderCount, otherCount: otherCount) {
                 case .flat:      resolvedFolderMode = .flat
                 case .recursive: resolvedFolderMode = .recursive
-                case .cancel:    return
+                case .cancel:    return .cancelled
                 }
             }
             switch FolderRenameScopePreference.current() {
@@ -357,7 +358,7 @@ final class AppController: ObservableObject {
                 switch FolderModeDialog.askFolderRenameScope(folderCount: folderCount, fileCount: otherCount) {
                 case .filesOnly:       resolvedRenameScope = .filesOnly
                 case .filesAndFolders: resolvedRenameScope = .filesAndFolders
-                case .cancel:          return
+                case .cancel:          return .cancelled
                 }
             }
         }
@@ -386,7 +387,7 @@ final class AppController: ObservableObject {
 
         if PermissionsManager.shared.finderAutomationStatus == .denied {
             SummaryDialog.showPermissionDenied()
-            return
+            return .failed
         }
 
         // Detect the FDA-on-destination denial. Surfaced via the failure
@@ -401,12 +402,13 @@ final class AppController: ObservableObject {
         }
         if fdaDenied {
             SummaryDialog.showFullDiskAccessRequired()
-            return
+            return .failed
         }
 
         lastBatch = dropResult.undoActions
 
         SummaryDialog.showIfNeeded(summary)
+        return .completed(hadFailures: !summary.failed.isEmpty)
     }
 
     /// Reverse the most recent batch by asking Finder to rename each file back

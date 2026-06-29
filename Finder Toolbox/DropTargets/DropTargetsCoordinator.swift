@@ -65,6 +65,13 @@ final class DropTargetsCoordinator {
 
     private var panels: [DropOverlayPanel] = []
 
+    /// Panels that received a drop and are showing a spinner while the
+    /// transfer materializes + lands (issue #40). Held here — and removed
+    /// from `panels` — so drag-end teardown leaves them up until the
+    /// operation resolves. Keyed by Finder window ID so a second drop on
+    /// the same window retires a still-running one rather than stacking.
+    private var processingPanels: [CGWindowID: DropOverlayPanel] = [:]
+
     /// Drag-time context, set on drag-start and cleared on drag-end.
     /// Used to keep every overlay's icon + tint in sync with the
     /// currently-intended operation, even for panels the cursor hasn't
@@ -187,6 +194,8 @@ final class DropTargetsCoordinator {
         folderByID.removeAll()
 
         hidePanels()
+        for panel in processingPanels.values { panel.orderOut(nil) }
+        processingPanels.removeAll()
 
         log.info("DropTargetsCoordinator stopped")
     }
@@ -481,23 +490,86 @@ final class DropTargetsCoordinator {
         // (DropOverlayView.draggingEntered/Updated return [] when
         // targetFolder is nil), so by the time this closure fires the
         // panel's `target.targetFolder` is guaranteed non-nil.
-        (panel.contentView as? DropOverlayView)?.onDrop = { [weak self, weak panel] urls, tempDir, operation in
+        let view = panel.contentView as? DropOverlayView
+
+        // Fired the instant a drop is accepted: detach the panel from the
+        // active drag set and switch it into the spinner state so it
+        // survives drag-end and shows progress (issue #40).
+        view?.onProcessingBegan = { [weak self, weak panel] in
+            guard let self, let panel else { return }
+            self.beginProcessing(panel)
+        }
+
+        // Fired when an async materialization yields no files — retire the
+        // spinner with a failure flash so it doesn't hang.
+        view?.onProcessingFailed = { [weak self, weak panel] in
+            guard let self, let panel else { return }
+            self.finishProcessing(panel, success: false)
+        }
+
+        view?.onDrop = { [weak self, weak panel] urls, tempDir, operation in
             guard let panel, let targetFolder = panel.target.targetFolder else {
                 if let tempDir { try? FileManager.default.removeItem(at: tempDir) }
+                if let self, let panel { self.finishProcessing(panel, success: false) }
                 return
             }
             let title = panel.target.title ?? targetFolder.lastPathComponent
             DebugLog.log("drop-targets",
                          "drop accepted on \"\(title)\" — \(urls.count) file(s) op=\(operation) target=\(targetFolder.path) urls=[\(urls.map(\.lastPathComponent).joined(separator: ", "))]")
-            _ = self
-            Task { @MainActor in
-                await AppController.shared.performDrop(urls: urls, into: targetFolder, operation: operation)
+            Task { @MainActor [weak self, weak panel] in
+                let outcome = await AppController.shared.performDrop(urls: urls, into: targetFolder, operation: operation)
                 if let tempDir {
                     try? FileManager.default.removeItem(at: tempDir)
+                }
+                guard let self, let panel else { return }
+                switch outcome {
+                case .completed(let hadFailures): self.finishProcessing(panel, success: !hadFailures)
+                case .failed:                     self.finishProcessing(panel, success: false)
+                case .cancelled:                  self.dismissProcessing(panel)
                 }
             }
         }
         return panel
+    }
+
+    // MARK: - Post-drop processing lifecycle (issue #40)
+
+    /// A drop landed on `panel`: pull it out of the active drag set (so
+    /// drag-end teardown won't hide it), re-assert its visibility in case
+    /// teardown already ran, and start the spinner. Relies on
+    /// `performDragOperation` running before the drag-end mouse-up reaches
+    /// our global monitor — the established ordering (see DragSessionMonitor).
+    private func beginProcessing(_ panel: DropOverlayPanel) {
+        let id = panel.target.windowID
+        panels.removeAll { $0 === panel }
+        if let existing = processingPanels[id], existing !== panel {
+            existing.orderOut(nil)
+        }
+        processingPanels[id] = panel
+        panel.orderFrontRegardless()
+        (panel.contentView as? DropOverlayView)?.showProcessing()
+        DebugLog.log("drop-targets", "processing started on window \(id)")
+    }
+
+    /// Show the brief success / failure confirmation, then schedule the
+    /// fade-out. Failures linger a touch longer so they register.
+    private func finishProcessing(_ panel: DropOverlayPanel, success: Bool) {
+        guard processingPanels[panel.target.windowID] === panel else { return }
+        (panel.contentView as? DropOverlayView)?.showResult(success: success)
+        let hold: TimeInterval = success ? 2.0 : 2.6
+        DispatchQueue.main.asyncAfter(deadline: .now() + hold) { [weak self, weak panel] in
+            guard let panel else { return }
+            self?.dismissProcessing(panel)
+        }
+        DebugLog.log("drop-targets", "processing finished on window \(panel.target.windowID) success=\(success)")
+    }
+
+    /// Fade the panel out and stop tracking it. No-op if a newer drop on
+    /// the same window has already replaced this panel.
+    private func dismissProcessing(_ panel: DropOverlayPanel) {
+        let id = panel.target.windowID
+        if processingPanels[id] === panel { processingPanels[id] = nil }
+        panel.fadeOutAndClose()
     }
 
     private func hidePanels() {
