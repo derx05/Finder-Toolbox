@@ -101,64 +101,77 @@ actor FinderBridge {
     /// Finder handles cross-volume moves as a copy + delete.
     ///
     /// Caller is responsible for ensuring `newName` is already unique in
-    /// `targetFolder` (do conflict resolution upstream). `move … to …`
-    /// without `with replacing` will fail if a same-named file exists.
+    /// `targetFolder` (do conflict resolution upstream). Note that the
+    /// `newName` being unique is not sufficient on its own: Finder's
+    /// `move … to folder …` verb first lands the item under the source's
+    /// *original* basename and renames it afterwards, so a pre-existing
+    /// file with that basename makes the move fail before the rename runs.
+    /// Such items are detected here and routed through the FileManager
+    /// path, which lands under a collision-proof UUID name first.
     func moveAndRename(_ items: [(source: URL, targetFolder: URL, newName: String)]) -> [RenameOutcome] {
         guard !items.isEmpty else { return [] }
 
-        // Network volumes (SMB/AFP) are split off: Finder's `move … to
-        // folder …` AppleScript verb is unreliable against them and
-        // commonly fails with "operation can't be completed". For those,
-        // do the move via FileManager and use Finder only for the
-        // visible rename, which is the part the user notices in undo.
-        var local: [(source: URL, targetFolder: URL, newName: String)] = []
-        var remote: [(source: URL, targetFolder: URL, newName: String)] = []
+        // Two reasons to bypass Finder's `move … to folder …` verb:
+        //   - Network volumes (SMB/AFP): the verb is unreliable against
+        //     them and commonly fails with "operation can't be completed".
+        //   - Transient basename collisions: the verb lands the item under
+        //     the source's original name before renaming, so a same-named
+        //     file already in the target aborts it (issue #39).
+        // Both are handled by the FileManager path, which moves to a UUID
+        // intermediate and uses Finder only for the visible rename — the
+        // part the user notices in undo.
+        var viaFinder: [(source: URL, targetFolder: URL, newName: String)] = []
+        var viaFileManager: [(source: URL, targetFolder: URL, newName: String)] = []
         for item in items {
-            if isOnRemoteVolume(item.targetFolder) {
-                remote.append(item)
+            if isOnRemoteVolume(item.targetFolder) || wouldTransientlyCollide(item) {
+                viaFileManager.append(item)
             } else {
-                local.append(item)
+                viaFinder.append(item)
             }
         }
 
         var outcomes: [RenameOutcome] = []
-        if !local.isEmpty {
-            outcomes.append(contentsOf: moveAndRenameViaFinder(local))
+        if !viaFinder.isEmpty {
+            outcomes.append(contentsOf: moveAndRenameViaFinder(viaFinder))
         }
-        if !remote.isEmpty {
-            outcomes.append(contentsOf: moveAndRenameViaFileManager(remote))
+        if !viaFileManager.isEmpty {
+            outcomes.append(contentsOf: moveAndRenameViaFileManager(viaFileManager))
         }
-        return outcomes
+        return ordered(outcomes, like: items)
     }
 
     /// Mirror of `moveAndRename` for the copy case: leaves the original
     /// in place and produces a duplicate in `targetFolder` with the
     /// caller-supplied `newName`. Uses Finder's `duplicate` verb so the
-    /// new file lands in Finder's undo stack. Cross-volume copies go
-    /// through the FileManager fallback (the same SMB-strict variants
-    /// the move path uses) rather than Finder, because Finder's
-    /// `duplicate` is just as unreliable on SMB as `move`.
+    /// new file lands in Finder's undo stack. Items are routed through the
+    /// FileManager fallback (the same SMB-strict variants the move path
+    /// uses) rather than Finder when either:
+    ///   - the copy is cross-volume — Finder's `duplicate` is just as
+    ///     unreliable on SMB as `move`; or
+    ///   - the target already holds a file with the source's basename —
+    ///     Finder's `duplicate` lands under that basename before renaming
+    ///     and would abort on the collision (issue #39).
     func copyAndRename(_ items: [(source: URL, targetFolder: URL, newName: String)]) -> [RenameOutcome] {
         guard !items.isEmpty else { return [] }
 
-        var local: [(source: URL, targetFolder: URL, newName: String)] = []
-        var remote: [(source: URL, targetFolder: URL, newName: String)] = []
+        var viaFinder: [(source: URL, targetFolder: URL, newName: String)] = []
+        var viaFileManager: [(source: URL, targetFolder: URL, newName: String)] = []
         for item in items {
-            if isOnRemoteVolume(item.targetFolder) {
-                remote.append(item)
+            if isOnRemoteVolume(item.targetFolder) || wouldTransientlyCollide(item) {
+                viaFileManager.append(item)
             } else {
-                local.append(item)
+                viaFinder.append(item)
             }
         }
 
         var outcomes: [RenameOutcome] = []
-        if !local.isEmpty {
-            outcomes.append(contentsOf: copyAndRenameViaFinder(local))
+        if !viaFinder.isEmpty {
+            outcomes.append(contentsOf: copyAndRenameViaFinder(viaFinder))
         }
-        if !remote.isEmpty {
-            outcomes.append(contentsOf: copyAndRenameViaFileManager(remote))
+        if !viaFileManager.isEmpty {
+            outcomes.append(contentsOf: copyAndRenameViaFileManager(viaFileManager))
         }
-        return outcomes
+        return ordered(outcomes, like: items)
     }
 
     /// Send `urls` to the Trash via Finder so the operation lands in
@@ -513,6 +526,47 @@ actor FinderBridge {
             parts.append("errno \(ns.code)")
         }
         return parts.joined(separator: " — ")
+    }
+
+    /// True when Finder's `move`/`duplicate` verb would abort on a name
+    /// collision before the rename runs. Both verbs land the item in
+    /// `targetFolder` under the source's *original* basename and only
+    /// then set the final (already-unique) `newName`; if a file with that
+    /// basename is already present, the verb fails. The FileManager path
+    /// sidesteps this by landing under a UUID name first.
+    ///
+    /// A same-folder copy is exempt: the "collision" is the source itself,
+    /// which Finder resolves by auto-appending " copy" rather than failing.
+    private func wouldTransientlyCollide(_ item: (source: URL, targetFolder: URL, newName: String)) -> Bool {
+        let landing = item.targetFolder.appendingPathComponent(item.source.lastPathComponent)
+        if landing.standardizedFileURL == item.source.standardizedFileURL { return false }
+        return FileManager.default.fileExists(atPath: landing.path)
+    }
+
+    /// Reassembles `outcomes` into the order of `items`, keyed by source
+    /// URL. The transfer is split across the Finder and FileManager paths,
+    /// each returning outcomes for only its own subset; callers
+    /// (`RenameExecutor.executeDrop`) zip the result positionally against
+    /// the input to build undo actions, so the order must match the input.
+    /// Source URLs are unique within a single batch, so a plain dictionary
+    /// keying is sufficient.
+    private func ordered(
+        _ outcomes: [RenameOutcome],
+        like items: [(source: URL, targetFolder: URL, newName: String)]
+    ) -> [RenameOutcome] {
+        var bySource: [URL: RenameOutcome] = [:]
+        for outcome in outcomes {
+            bySource[Self.sourceURL(of: outcome)] = outcome
+        }
+        return items.compactMap { bySource[$0.source] }
+    }
+
+    nonisolated private static func sourceURL(of outcome: RenameOutcome) -> URL {
+        switch outcome {
+        case .renamed(let from, _): from
+        case .skipped(let url, _): url
+        case .failed(let url, _): url
+        }
     }
 
     private func isOnRemoteVolume(_ url: URL) -> Bool {
