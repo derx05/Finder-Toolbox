@@ -52,6 +52,13 @@ final class DropOverlayView: NSView {
     /// `performDragOperation` has several accept branches.
     private var didSignalProcessing = false
 
+    /// Source URLs of the accepted drop, captured for the move/copy paths
+    /// where they're real on-disk files. Lets `showProcessing` recognize
+    /// an in-place rename (dropping a file back into its own folder) and
+    /// label it "Renaming…" rather than "Moving…". Empty for promise/copy
+    /// sources, which are always labelled "Copying…" anyway.
+    private var lastDropSourceURLs: [URL] = []
+
     /// True once `showProcessing` runs. The panel lingers past drag-end
     /// while the transfer lands (issue #40); refuse any further drops on
     /// it so a stray second drop can't restart the pipeline on a panel
@@ -345,10 +352,25 @@ final class DropOverlayView: NSView {
     func showProcessing() {
         isProcessing = true
         setHighlighted(false)
-        titleLabel.stringValue = (currentOperation == .move) ? "Moving…" : "Copying…"
+        titleLabel.stringValue = processingVerb
         iconView.isHidden = true
         highlightLayer.opacity = 0
         spinner.startAnimation(nil)
+    }
+
+    /// Label for the in-flight transfer. A move whose sources already live
+    /// in the target folder is really an in-place rename (dragging a file
+    /// from a Finder window onto that same window's overlay), so call it
+    /// "Renaming…". Everything else is the plain move/copy verb.
+    private var processingVerb: String {
+        guard currentOperation == .move else { return "Copying…" }
+        if let targetFolder, !lastDropSourceURLs.isEmpty,
+           lastDropSourceURLs.allSatisfy({
+               $0.deletingLastPathComponent().standardizedFileURL == targetFolder.standardizedFileURL
+           }) {
+            return "Renaming…"
+        }
+        return "Moving…"
     }
 
     /// Replace the spinner with a brief success / failure confirmation.
@@ -554,6 +576,7 @@ final class DropOverlayView: NSView {
                          "perform[\(self.folderName)] path=plainFileURL op=\(operation) urls=\(fileURLs.count)",
                          level: fileURLs.isEmpty ? .warning : .info)
             if !fileURLs.isEmpty {
+                lastDropSourceURLs = fileURLs
                 signalProcessingBegan()
                 onDrop?(fileURLs, nil, operation)
             }

@@ -556,7 +556,7 @@ final class DropTargetsCoordinator {
     private func finishProcessing(_ panel: DropOverlayPanel, success: Bool) {
         guard processingPanels[panel.target.windowID] === panel else { return }
         (panel.contentView as? DropOverlayView)?.showResult(success: success)
-        let hold: TimeInterval = success ? 0.9 : 1.6
+        let hold: TimeInterval = success ? 2.0 : 2.6
         DispatchQueue.main.asyncAfter(deadline: .now() + hold) { [weak self, weak panel] in
             guard let panel else { return }
             self?.dismissProcessing(panel)
