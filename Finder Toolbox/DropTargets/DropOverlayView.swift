@@ -28,12 +28,35 @@ final class DropOverlayView: NSView {
     /// folder, so a missed cleanup leaves an empty dir at most.
     var onDrop: ((_ urls: [URL], _ tempDir: URL?, _ operation: DropOperation) -> Void)?
 
+    /// Fired synchronously the moment a drop is accepted (i.e.
+    /// `performDragOperation` commits to returning `true`), before any
+    /// async materialization. The coordinator uses this to keep the panel
+    /// alive past drag-end and switch it into the spinner state. Issue #40.
+    var onProcessingBegan: (() -> Void)?
+
+    /// Fired when an async materialization path terminates without
+    /// producing any files (Mail bridge threw, a promise resolved empty).
+    /// `onDrop` covers the success terminal; this covers the failure one
+    /// so the processing panel isn't left spinning forever.
+    var onProcessingFailed: (() -> Void)?
+
     private let log = Logger(subsystem: "danielammann.Finder-Toolbox", category: "drop-targets")
     private let backdrop = NSVisualEffectView()
     private let highlightLayer = CALayer()
     private let iconView = NSImageView()
+    private let spinner = NSProgressIndicator()
     private let titleLabel = NSTextField(labelWithString: "File Renamer")
     private let folderLabel = NSTextField(labelWithString: "")
+
+    /// Guards `onProcessingBegan` against firing more than once per drop —
+    /// `performDragOperation` has several accept branches.
+    private var didSignalProcessing = false
+
+    /// True once `showProcessing` runs. The panel lingers past drag-end
+    /// while the transfer lands (issue #40); refuse any further drops on
+    /// it so a stray second drop can't restart the pipeline on a panel
+    /// that's already committed and fading out.
+    private var isProcessing = false
 
     /// Operation currently being advertised to the dragging system (drives
     /// cursor decoration + overlay tint). Recomputed on every
@@ -93,6 +116,14 @@ final class DropOverlayView: NSView {
         iconView.isEditable = false
         iconView.unregisterDraggedTypes()
 
+        // Spinner shown in place of the move/copy icon while a dropped
+        // transfer materializes + lands (issue #40). Hidden until then.
+        spinner.style = .spinning
+        spinner.controlSize = .small
+        spinner.isIndeterminate = true
+        spinner.isDisplayedWhenStopped = false
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+
         titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
         titleLabel.textColor = .labelColor
         titleLabel.lineBreakMode = .byTruncatingTail
@@ -114,6 +145,7 @@ final class DropOverlayView: NSView {
         textStack.translatesAutoresizingMaskIntoConstraints = false
 
         addSubview(iconView)
+        addSubview(spinner)
         addSubview(textStack)
 
         NSLayoutConstraint.activate([
@@ -126,6 +158,9 @@ final class DropOverlayView: NSView {
             iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
             iconView.widthAnchor.constraint(equalToConstant: 26),
             iconView.heightAnchor.constraint(equalToConstant: 26),
+
+            spinner.centerXAnchor.constraint(equalTo: iconView.centerXAnchor),
+            spinner.centerYAnchor.constraint(equalTo: iconView.centerYAnchor),
 
             textStack.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 10),
             textStack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -10),
@@ -293,6 +328,43 @@ final class DropOverlayView: NSView {
         highlightLayer.backgroundColor = op.tintColor.withAlphaComponent(0.18).cgColor
     }
 
+    // MARK: - Post-drop processing state (issue #40)
+
+    /// Fire `onProcessingBegan` exactly once for this drop. Called from
+    /// each `performDragOperation` branch that commits to returning `true`.
+    private func signalProcessingBegan() {
+        guard !didSignalProcessing else { return }
+        didSignalProcessing = true
+        onProcessingBegan?()
+    }
+
+    /// Switch the overlay into its processing state: halt the hover
+    /// conveyor/pulse, replace the move/copy glyph with a spinner, and
+    /// relabel to the in-flight verb. The folder name stays put so the
+    /// user still sees where the files are going. Stays until `showResult`.
+    func showProcessing() {
+        isProcessing = true
+        setHighlighted(false)
+        titleLabel.stringValue = (currentOperation == .move) ? "Moving…" : "Copying…"
+        iconView.isHidden = true
+        highlightLayer.opacity = 0
+        spinner.startAnimation(nil)
+    }
+
+    /// Replace the spinner with a brief success / failure confirmation.
+    /// The coordinator dismisses the panel a short time after this lands.
+    func showResult(success: Bool) {
+        spinner.stopAnimation(nil)
+        iconView.isHidden = false
+        let symbol = success ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+        let tint: NSColor = success ? .systemGreen : .systemRed
+        iconView.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+        iconView.contentTintColor = tint
+        titleLabel.stringValue = success ? "Done" : "Failed"
+        highlightLayer.backgroundColor = tint.withAlphaComponent(0.18).cgColor
+        highlightLayer.opacity = 1
+    }
+
     private func setHighlighted(_ on: Bool) {
         CATransaction.begin()
         CATransaction.setAnimationDuration(0.15)
@@ -356,6 +428,7 @@ final class DropOverlayView: NSView {
     // MARK: - NSDraggingDestination
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard !isProcessing else { return [] }
         // Refuse drops until we know the destination — we can't pick the
         // right operation (move vs. copy) without the target volume, so
         // commit-only-when-resolved is safer than guessing. The cursor
@@ -391,7 +464,7 @@ final class DropOverlayView: NSView {
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard targetFolder != nil else { return [] }
+        guard !isProcessing, targetFolder != nil else { return [] }
         let (op, accepted) = desiredOperation(sender)
         if !accepted.isEmpty {
             DispatchQueue.main.async { [weak self] in
@@ -480,7 +553,10 @@ final class DropOverlayView: NSView {
             DebugLog.log("drop-overlay",
                          "perform[\(self.folderName)] path=plainFileURL op=\(operation) urls=\(fileURLs.count)",
                          level: fileURLs.isEmpty ? .warning : .info)
-            if !fileURLs.isEmpty { onDrop?(fileURLs, nil, operation) }
+            if !fileURLs.isEmpty {
+                signalProcessingBegan()
+                onDrop?(fileURLs, nil, operation)
+            }
             return !fileURLs.isEmpty
         }
         DebugLog.log("drop-overlay",
@@ -502,6 +578,7 @@ final class DropOverlayView: NSView {
             if !extracted.isEmpty {
                 DebugLog.log("drop-overlay",
                              "perform[\(self.folderName)] path=mailAttachment op=copy urls=\(extracted.count)")
+                signalProcessingBegan()
                 onDrop?(extracted, nil, .copy)
                 return true
             }
@@ -529,10 +606,12 @@ final class DropOverlayView: NSView {
     /// AppleEvent round-trip with Mail.
     private func performMailDrop(dragged: [MailBridge.DraggedMessage]) -> Bool {
         guard let dir = makeStagingDir() else { return false }
+        signalProcessingBegan()
 
         let folderName = self.folderName
         let log = self.log
         let onDrop = self.onDrop
+        let onProcessingFailed = self.onProcessingFailed
 
         DispatchQueue.global(qos: .userInitiated).async {
             do {
@@ -544,6 +623,7 @@ final class DropOverlayView: NSView {
                                  level: urls.isEmpty ? .warning : .info)
                     if urls.isEmpty {
                         try? FileManager.default.removeItem(at: dir)
+                        onProcessingFailed?()
                         return
                     }
                     onDrop?(urls, dir, .copy)
@@ -552,6 +632,7 @@ final class DropOverlayView: NSView {
                 log.error("dropOverlay[\(folderName, privacy: .public)]: Mail bridge failed: \(error.localizedDescription, privacy: .public)")
                 DispatchQueue.main.async {
                     try? FileManager.default.removeItem(at: dir)
+                    onProcessingFailed?()
                 }
             }
         }
@@ -598,11 +679,13 @@ final class DropOverlayView: NSView {
             return false
         }
         log.debug("dropOverlay[\(self.folderName, privacy: .public)]: legacy promise expecting \(names.count, privacy: .public) file(s): \(names.joined(separator: ", "), privacy: .public)")
+        signalProcessingBegan()
 
         let expected = names.map { dir.appendingPathComponent($0) }
         let folderName = self.folderName
         let log = self.log
         let onDrop = self.onDrop
+        let onProcessingFailed = self.onProcessingFailed
 
         // Poll off main so we don't block the drag finalize. Mail writes
         // .eml files in well under a second on a typical machine.
@@ -635,6 +718,7 @@ final class DropOverlayView: NSView {
                              level: resolved.count < expected.count ? .warning : .info)
                 if all.isEmpty {
                     try? FileManager.default.removeItem(at: dir)
+                    onProcessingFailed?()
                     return
                 }
                 onDrop?(all, dir, .copy)
@@ -649,6 +733,7 @@ final class DropOverlayView: NSView {
     /// advertises the types — we intercept its drops via the legacy path
     /// above before reaching here.
     private func performModernPromiseDrop(receivers: [NSFilePromiseReceiver], dir: URL, fileURLs: [URL]) -> Bool {
+        signalProcessingBegan()
         let queue = OperationQueue()
         queue.qualityOfService = .userInitiated
 
@@ -669,6 +754,7 @@ final class DropOverlayView: NSView {
         let folderName = self.folderName
         let log = self.log
         let onDrop = self.onDrop
+        let onProcessingFailed = self.onProcessingFailed
         group.notify(queue: .main) { [urlsBox] in
             var all = fileURLs
             all.append(contentsOf: urlsBox.urls)
@@ -678,6 +764,7 @@ final class DropOverlayView: NSView {
                          level: all.isEmpty ? .warning : .info)
             if all.isEmpty {
                 try? FileManager.default.removeItem(at: dir)
+                onProcessingFailed?()
                 return
             }
             onDrop?(all, dir, .copy)
