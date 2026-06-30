@@ -149,6 +149,40 @@ actor FinderWindowSnapshot {
 
     // MARK: - Apple Events side
 
+    /// Queries Finder for the current target folder of a single window by its
+    /// CGWindowID. Called at drop time — after the user releases the mouse the
+    /// drag session is over and Finder answers AE again, even when it was the
+    /// drag source. Returns nil on any AE failure so the caller can fall back
+    /// to the cached value.
+    func captureWindowTarget(windowID: CGWindowID) async -> (URL, String)? {
+        let source = """
+            tell application "Finder"
+                try
+                    set w to (first Finder window whose id is \(windowID))
+                    {URL of (target of w), name of w}
+                on error
+                    {"", ""}
+                end try
+            end tell
+        """
+        guard let script = NSAppleScript(source: source) else { return nil }
+        var errorInfo: NSDictionary?
+        let result = script.executeAndReturnError(&errorInfo)
+        guard errorInfo == nil,
+              let urlDesc  = result.atIndex(1),
+              let nameDesc = result.atIndex(2) else { return nil }
+        let rawString = urlDesc.stringValue ?? ""
+        let name      = nameDesc.stringValue ?? ""
+        guard !rawString.isEmpty, !rawString.hasPrefix("ERR:") else { return nil }
+        let folderURL: URL
+        if rawString.hasPrefix("file:"), let parsed = URL(string: rawString) {
+            folderURL = parsed
+        } else {
+            folderURL = URL(fileURLWithPath: rawString)
+        }
+        return (folderURL, name)
+    }
+
     /// Asks Finder for the (id, target POSIX path, name) of every window.
     /// Returns a dict keyed by window id for joining with the CG list.
     ///

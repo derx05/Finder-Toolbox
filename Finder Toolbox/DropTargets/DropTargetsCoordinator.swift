@@ -507,16 +507,38 @@ final class DropTargetsCoordinator {
             self.finishProcessing(panel, success: false)
         }
 
-        view?.onDrop = { [weak self, weak panel] urls, tempDir, operation in
-            guard let panel, let targetFolder = panel.target.targetFolder else {
+        view?.onDrop = { [weak self, weak panel, snapshot = self.snapshot] urls, tempDir, operation in
+            guard let panel, let cachedFolder = panel.target.targetFolder else {
                 if let tempDir { try? FileManager.default.removeItem(at: tempDir) }
                 if let self, let panel { self.finishProcessing(panel, success: false) }
                 return
             }
-            let title = panel.target.title ?? targetFolder.lastPathComponent
-            DebugLog.log("drop-targets",
-                         "drop accepted on \"\(title)\" — \(urls.count) file(s) op=\(operation) target=\(targetFolder.path) urls=[\(urls.map(\.lastPathComponent).joined(separator: ", "))]")
+            let windowID = panel.target.windowID
             Task { @MainActor [weak self, weak panel] in
+                // Re-query Finder for the window's current target. The drag
+                // session is over at this point so Finder answers AE even
+                // when it was the drag source — catching the navigate-then-
+                // immediately-drag gap without requiring Accessibility.
+                // Fall back to the cached folder if the AE call fails.
+                // Re-verify the target at drop time. If Finder doesn't answer
+                // (edge case: still busy), cancel rather than silently use
+                // a stale cached folder. The cache is display-only.
+                let verified = await snapshot.captureWindowTarget(windowID: windowID)
+                guard let (targetFolder, freshTitle) = verified else {
+                    DebugLog.log("drop-targets",
+                                 "drop cancelled — could not verify target folder for window \(windowID)")
+                    if let tempDir { try? FileManager.default.removeItem(at: tempDir) }
+                    guard let self, let panel else { return }
+                    self.dismissProcessing(panel)
+                    return
+                }
+                if targetFolder.standardizedFileURL != cachedFolder.standardizedFileURL {
+                    DebugLog.log("drop-targets",
+                                 "target corrected at drop time: \(cachedFolder.lastPathComponent) → \(targetFolder.lastPathComponent)")
+                    panel?.setTarget(folder: targetFolder, title: freshTitle)
+                }
+                DebugLog.log("drop-targets",
+                             "drop accepted on \"\(freshTitle)\" — \(urls.count) file(s) op=\(operation) target=\(targetFolder.path) urls=[\(urls.map(\.lastPathComponent).joined(separator: ", "))]")
                 let outcome = await AppController.shared.performDrop(urls: urls, into: targetFolder, operation: operation)
                 if let tempDir {
                     try? FileManager.default.removeItem(at: tempDir)
