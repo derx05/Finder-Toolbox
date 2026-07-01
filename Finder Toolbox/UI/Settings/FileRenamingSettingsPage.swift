@@ -454,6 +454,7 @@ struct FileRenamingSettingsPage: View {
         .formStyle(.grouped)
         .task {
             await permissions.checkPermission()
+            await permissions.checkFullDiskAccess()
         }
     }
 

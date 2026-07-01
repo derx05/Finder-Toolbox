@@ -31,53 +31,54 @@ final class PermissionsManager: ObservableObject {
     /// Re-probes every permission and publishes the result. Called by the
     /// Permissions settings page when it appears and when the app becomes
     /// active again (covering the System Settings round-trip).
+    ///
+    /// All three probes run concurrently off the main thread so
+    /// `AEDeterminePermissionToAutomateTarget` never blocks the main actor
+    /// while SwiftUI is trying to render. Results are published together
+    /// once all probes complete.
     func refreshAll() async {
-        // Always refresh — overrides the .unknown short-circuit in
-        // checkPermission() so a previously-denied Automation grant gets
-        // re-evaluated after the user opens Settings and toggles it.
         finderAutomationStatus = .unknown
-        await checkPermission()
-        mailAutomationStatus = probeMailAutomationStatus()
-        fullDiskAccessStatus = hasFullDiskAccess() ? .authorized : .denied
+        mailAutomationStatus = .unknown
+        fullDiskAccessStatus = .unknown
+
+        async let finder: Status = Task.detached(priority: .userInitiated) {
+            Self.probeAutomation(bundleID: "com.apple.finder", askUserIfNeeded: false)
+        }.value
+        async let mail: Status = Task.detached(priority: .userInitiated) {
+            Self.probeAutomation(bundleID: "com.apple.mail", askUserIfNeeded: false)
+        }.value
+        async let fda: Bool = Task.detached(priority: .userInitiated) {
+            FileManager.default.isReadableFile(
+                atPath: "/Library/Application Support/com.apple.TCC/TCC.db"
+            )
+        }.value
+
+        finderAutomationStatus = await finder
+        mailAutomationStatus = await mail
+        fullDiskAccessStatus = await fda ? .authorized : .denied
     }
 
-    /// Queries TCC for the current Mail Automation grant without launching
-    /// Mail or surfacing a system prompt. Uses
-    /// `AEDeterminePermissionToAutomateTarget` with `askUserIfNeeded: false`.
-    ///
-    /// - `noErr` → granted
-    /// - `errAEEventNotPermitted` (-1743) → explicitly denied
-    /// - `errAEEventWouldRequireUserConsent` (-1744) → never asked yet
-    /// - anything else (Mail not installed, etc.) → unknown
-    ///
-    /// We collapse "never asked" into `.denied` for UI purposes: the user
-    /// has the same job to do (open System Settings, or trigger the grant
-    /// by performing a Mail drag once).
-    private func probeMailAutomationStatus() -> Status {
-        Self.probeAutomation(bundleID: "com.apple.mail", askUserIfNeeded: false)
-    }
-
-    /// Queries TCC for the current Finder Automation grant via
-    /// `AEDeterminePermissionToAutomateTarget` — same mechanism as the
-    /// Mail probe. We previously ran `tell application "Finder" to get
-    /// version` as the probe, but `get version` of an app is a
-    /// "by-the-way" Apple Event that macOS resolves from the bundle's
-    /// Info.plist locally without sending an AE to the running process,
-    /// so TCC was never consulted and the probe always returned
-    /// `.authorized` even when the real grant was missing — the bug
-    /// surfaced after the Debug bundle ID change forced a fresh TCC
-    /// state and overlays silently failed.
-    ///
-    /// "Never asked yet" (-1744) collapses into `.denied` so the UI tells
-    /// the user there's an action to take; the actual prompt fires when
-    /// the user performs a real rename/drop.
     func checkPermission() async {
         guard finderAutomationStatus == .unknown else { return }
-        finderAutomationStatus = probeFinderAutomationStatus()
+        finderAutomationStatus = await Task.detached(priority: .userInitiated) {
+            Self.probeAutomation(bundleID: "com.apple.finder", askUserIfNeeded: false)
+        }.value
     }
 
-    private func probeFinderAutomationStatus() -> Status {
-        Self.probeAutomation(bundleID: "com.apple.finder", askUserIfNeeded: false)
+    func checkMailAutomation() async {
+        guard mailAutomationStatus == .unknown else { return }
+        mailAutomationStatus = await Task.detached(priority: .userInitiated) {
+            Self.probeAutomation(bundleID: "com.apple.mail", askUserIfNeeded: false)
+        }.value
+    }
+
+    func checkFullDiskAccess() async {
+        guard fullDiskAccessStatus == .unknown else { return }
+        fullDiskAccessStatus = await Task.detached(priority: .userInitiated) {
+            FileManager.default.isReadableFile(
+                atPath: "/Library/Application Support/com.apple.TCC/TCC.db"
+            )
+        }.value ? .authorized : .denied
     }
 
     /// Surface the system Automation prompt for Finder. macOS shows the

@@ -16,6 +16,7 @@ struct GeneralSettingsPage: View {
                     set: { loginItem.setEnabled($0) }
                 ))
                 .toggleStyle(.switch)
+                .disabled(loginItemUnavailable)
 
                 if let message = startupFooter {
                     Text(message)
@@ -57,7 +58,14 @@ struct GeneralSettingsPage: View {
         .formStyle(.grouped)
     }
 
+    private var loginItemUnavailable: Bool {
+        BuildConfiguration.isDebug || loginItem.status == .notFound
+    }
+
     private var startupFooter: String? {
+        if BuildConfiguration.isDebug {
+            return "Start at Login is not available in debug builds."
+        }
         if let error = loginItem.lastError {
             return error
         }

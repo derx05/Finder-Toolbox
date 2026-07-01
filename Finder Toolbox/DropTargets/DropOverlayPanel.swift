@@ -83,6 +83,21 @@ final class DropOverlayPanel: NSPanel {
         return NSRect(x: x, y: y, width: size.width, height: size.height)
     }
 
+    /// Fade the panel out, then order it off-screen. Used to retire a
+    /// processing overlay after its post-drop confirmation (issue #40) so
+    /// it doesn't just blink away. Resets `alphaValue` so a recycled panel
+    /// object isn't left invisible (panels are recreated per drag, but
+    /// this keeps the method self-contained).
+    func fadeOutAndClose() {
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.25
+            animator().alphaValue = 0
+        }, completionHandler: { [weak self] in
+            self?.orderOut(nil)
+            self?.alphaValue = 1
+        })
+    }
+
     // Borderless panels default to canBecomeKey=false, which blocks the
     // drag-and-drop chain entirely (the panel never receives drag
     // events). Allow key, but combined with `becomesKeyOnlyIfNeeded`

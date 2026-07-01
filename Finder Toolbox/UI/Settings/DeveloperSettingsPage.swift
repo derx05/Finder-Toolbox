@@ -2,12 +2,170 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
-/// Debug and diagnostics surface. Toggles drop-target logging into
-/// `DebugLog`'s in-memory ring buffer, toggles per-drop result toasts,
-/// and renders the log so the user can copy/save it when reporting a
-/// missed-drop bug. OSLog mirroring is always on regardless of these
-/// toggles — see `DebugLog`.
 struct DeveloperSettingsPage: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                NotchFeedbackSection()
+                DropDiagnosticsSection()
+            }
+            .padding(20)
+        }
+    }
+}
+
+// MARK: - Collapsible card
+
+private struct DevCard<Content: View>: View {
+    let title: String
+    let subtitle: String
+    @Binding var isExpanded: Bool
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header — always visible
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(alignment: .center, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title).font(.headline)
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 12)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                        .animation(.easeInOut(duration: 0.2), value: isExpanded)
+                }
+                .padding(14)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                Divider()
+                    .padding(.horizontal, 14)
+                content()
+                    .padding(14)
+            }
+        }
+        .background(Color(nsColor: .controlBackgroundColor),
+                    in: RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(Color.secondary.opacity(0.2), lineWidth: 0.5)
+        )
+    }
+}
+
+// MARK: - Notch Feedback section
+
+private struct NotchFeedbackSection: View {
+    @State private var isExpanded: Bool = false
+
+    @State private var progressMessage: String = "Processing 12 files…"
+    @State private var progressValue: Double = 0.6
+    @State private var indeterminate: Bool = false
+    @State private var successMessage: String = "12 files renamed"
+    @State private var errorMessage: String = "2 files failed"
+    @State private var errorDetail: String = "invoice.pdf: Permission denied\nreport.docx: File in use"
+
+    var body: some View {
+        DevCard(
+            title: "Notch Feedback",
+            subtitle: "Try the notch (or top-center pill on non-notch screens) feedback element.",
+            isExpanded: $isExpanded
+        ) {
+            VStack(alignment: .leading, spacing: 16) {
+                progressDemo
+                Divider()
+                successDemo
+                Divider()
+                errorDemo
+                Divider()
+                Button("Dismiss") {
+                    NotchFeedbackController.shared.dismiss()
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+    }
+
+    private var progressDemo: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Progress", systemImage: "chart.bar.fill")
+                .font(.subheadline.weight(.medium))
+            HStack {
+                TextField("Message", text: $progressMessage)
+                    .textFieldStyle(.roundedBorder)
+                Toggle("Indeterminate", isOn: $indeterminate)
+                    .toggleStyle(.checkbox)
+            }
+            if !indeterminate {
+                HStack(spacing: 8) {
+                    Text(String(format: "%.0f%%", progressValue * 100))
+                        .font(.caption.monospacedDigit())
+                        .frame(width: 32, alignment: .trailing)
+                    Slider(value: $progressValue, in: 0...1)
+                }
+            }
+            Button("Show progress") {
+                NotchFeedbackController.shared.showProgress(
+                    progressMessage,
+                    value: indeterminate ? nil : progressValue
+                )
+            }
+            .buttonStyle(.bordered)
+        }
+    }
+
+    private var successDemo: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Success  (auto-dismisses after 2.5 s)", systemImage: "checkmark.circle.fill")
+                .font(.subheadline.weight(.medium))
+            TextField("Message", text: $successMessage)
+                .textFieldStyle(.roundedBorder)
+            Button("Show success") {
+                NotchFeedbackController.shared.showSuccess(successMessage)
+            }
+            .buttonStyle(.bordered)
+        }
+    }
+
+    private var errorDemo: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Error  (hover or tap to expand detail)", systemImage: "xmark.circle.fill")
+                .font(.subheadline.weight(.medium))
+            TextField("Short message", text: $errorMessage)
+                .textFieldStyle(.roundedBorder)
+            TextField("Detail (optional)", text: $errorDetail, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(2...4)
+            Button("Show error") {
+                let detail = errorDetail.trimmingCharacters(in: .whitespacesAndNewlines)
+                NotchFeedbackController.shared.showError(
+                    errorMessage,
+                    detail: detail.isEmpty ? nil : detail
+                )
+            }
+            .buttonStyle(.bordered)
+        }
+    }
+}
+
+// MARK: - Drop Diagnostics section
+
+private struct DropDiagnosticsSection: View {
+    @State private var isExpanded: Bool = false
+
     @AppStorage(DefaultsKeys.dropTargetsDebugLog) private var loggingEnabled: Bool = false
     @AppStorage(DefaultsKeys.showDropDebugPopups) private var popupsEnabled: Bool = false
 
@@ -16,44 +174,32 @@ struct DeveloperSettingsPage: View {
     @State private var categoryFilter: String = ""
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                Text("Diagnostics for drop-target behaviour. Use these to capture details after a drop that didn't behave as expected — the in-app log persists the last 500 events while the toggle is on, and OSLog (Console.app) always captures them regardless.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.bottom, 4)
-
-                togglesCard
-                logCard
+        DevCard(
+            title: "Drop Target Diagnostics",
+            subtitle: "Capture per-drop logs and result toasts to diagnose missed or misrouted drops.",
+            isExpanded: $isExpanded
+        ) {
+            VStack(alignment: .leading, spacing: 14) {
+                togglesGroup
+                logGroup
             }
-            .padding(20)
         }
     }
 
-    private var togglesCard: some View {
+    private var togglesGroup: some View {
         VStack(alignment: .leading, spacing: 10) {
             toggleRow(
                 title: "Capture drop-target log",
-                detail: "Record every drag-start, overlay drop, and rename outcome into an in-memory ring buffer viewable below. Off by default to keep idle cost zero.",
+                detail: "Record drag-start, overlay drop, and rename outcomes into an in-memory ring buffer (max 500 entries). OSLog always captures regardless of this toggle.",
                 isOn: $loggingEnabled
             )
-
             Divider().padding(.vertical, 2)
-
             toggleRow(
                 title: "Show debug popup after each drop",
-                detail: "After every drop, show a small auto-dismissing toast in the corner with the target folder, operation, and per-file outcome. Useful for catching silent failures.",
+                detail: "Auto-dismissing toast after every drop showing target folder, operation, and per-file outcome.",
                 isOn: $popupsEnabled
             )
         }
-        .padding(14)
-        .background(Color(nsColor: .controlBackgroundColor),
-                    in: RoundedRectangle(cornerRadius: 10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(Color.secondary.opacity(0.2), lineWidth: 0.5)
-        )
     }
 
     private func toggleRow(title: String, detail: String, isOn: Binding<Bool>) -> some View {
@@ -72,7 +218,7 @@ struct DeveloperSettingsPage: View {
         }
     }
 
-    private var logCard: some View {
+    private var logGroup: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Log").font(.headline)
@@ -96,23 +242,17 @@ struct DeveloperSettingsPage: View {
 
                 Spacer()
 
-                Button {
-                    copyAll()
-                } label: {
+                Button { copyAll() } label: {
                     Label("Copy", systemImage: "doc.on.doc")
                 }
                 .disabled(filteredEntries.isEmpty)
 
-                Button {
-                    saveAll()
-                } label: {
+                Button { saveAll() } label: {
                     Label("Save…", systemImage: "square.and.arrow.down")
                 }
                 .disabled(filteredEntries.isEmpty)
 
-                Button {
-                    debugLog.clear()
-                } label: {
+                Button { debugLog.clear() } label: {
                     Label("Clear", systemImage: "trash")
                 }
                 .disabled(debugLog.entries.isEmpty)
@@ -120,13 +260,6 @@ struct DeveloperSettingsPage: View {
 
             logList
         }
-        .padding(14)
-        .background(Color(nsColor: .controlBackgroundColor),
-                    in: RoundedRectangle(cornerRadius: 10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(Color.secondary.opacity(0.2), lineWidth: 0.5)
-        )
     }
 
     private var logList: some View {
@@ -173,13 +306,13 @@ struct DeveloperSettingsPage: View {
 
     private var filteredEntries: [DebugLog.Entry] {
         debugLog.entries.filter { e in
-            let levelOK: Bool
-            switch levelFilter {
-            case .all:        levelOK = true
-            case .warnError:  levelOK = e.level != .info
-            case .errorOnly:  levelOK = e.level == .error
+            let levelOK: Bool = switch levelFilter {
+            case .all:       true
+            case .warnError: e.level != .info
+            case .errorOnly: e.level == .error
             }
-            let catOK = categoryFilter.isEmpty || e.category.localizedCaseInsensitiveContains(categoryFilter)
+            let catOK = categoryFilter.isEmpty ||
+                        e.category.localizedCaseInsensitiveContains(categoryFilter)
             return levelOK && catOK
         }
     }
@@ -228,7 +361,6 @@ struct DeveloperSettingsPage: View {
 
 private enum LevelFilter: CaseIterable, Hashable {
     case all, warnError, errorOnly
-
     var label: String {
         switch self {
         case .all:       "All"
