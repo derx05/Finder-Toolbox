@@ -4,8 +4,8 @@ import Combine
 
 // MARK: - State
 
-enum NotchFeedbackState: Equatable {
-    struct ChoiceOption: Equatable {
+enum NotchFeedbackState: Equatable, Hashable {
+    struct ChoiceOption: Equatable, Hashable {
         let id: String
         let label: String
     }
@@ -280,19 +280,19 @@ final class NotchFeedbackController {
         dismissTask?.cancel()
         dismissTask = nil
         model.isDetailExpanded = false
-        model.state = .progress(message: message, value: value)
+        withAnimation(.easeInOut(duration: 0.22)) { model.state = .progress(message: message, value: value) }
         present(contentHeight: Self.contentHeight)
     }
 
     func updateProgress(message: String? = nil, value: Double?) {
         guard case .progress(let current, _) = model.state else { return }
-        model.state = .progress(message: message ?? current, value: value)
+        withAnimation(.easeInOut(duration: 0.15)) { model.state = .progress(message: message ?? current, value: value) }
     }
 
     func showSuccess(_ message: String, autoDismissAfter seconds: TimeInterval = 2.5) {
         dismissTask?.cancel()
         model.isDetailExpanded = false
-        model.state = .success(message: message)
+        withAnimation(.easeInOut(duration: 0.22)) { model.state = .success(message: message) }
         present(contentHeight: Self.contentHeight)
         dismissTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(seconds))
@@ -318,7 +318,7 @@ final class NotchFeedbackController {
         model.isDetailExpanded = false
 
         let mapped = options.map { NotchFeedbackState.ChoiceOption(id: $0.id, label: $0.label) }
-        model.state = .choice(prompt: prompt, options: mapped)
+        withAnimation(.easeInOut(duration: 0.22)) { model.state = .choice(prompt: prompt, options: mapped) }
         present(contentHeight: Self.choiceContentHeight)
 
         return await withCheckedContinuation { continuation in
@@ -334,7 +334,7 @@ final class NotchFeedbackController {
         dismissTask?.cancel()
         dismissTask = nil
         model.isDetailExpanded = false
-        model.state = .warning(message: message, detail: detail)
+        withAnimation(.easeInOut(duration: 0.22)) { model.state = .warning(message: message, detail: detail) }
         present(contentHeight: Self.contentHeight)
 
         sizeObserver = model.$isDetailExpanded
@@ -351,7 +351,7 @@ final class NotchFeedbackController {
         dismissTask?.cancel()
         dismissTask = nil
         model.isDetailExpanded = false
-        model.state = .error(message: message, detail: detail)
+        withAnimation(.easeInOut(duration: 0.22)) { model.state = .error(message: message, detail: detail) }
         present(contentHeight: Self.contentHeight)
 
         sizeObserver = model.$isDetailExpanded

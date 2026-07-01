@@ -18,14 +18,21 @@ struct NotchFeedbackView: View {
     var body: some View {
         ZStack(alignment: .top) {
             background
-            content
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .padding(.top, topInset)
-                // Fade in after the shape has grown; controller sets this flag
-                // once the expand animation is near completion.
-                .opacity(model.contentVisible ? 1 : 0)
-                .animation(.easeIn(duration: 0.2), value: model.contentVisible)
+            Group {
+                content
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .padding(.top, topInset)
+            }
+            // Fade in after the shape has grown; controller sets this flag
+            // once the expand animation is near completion.
+            .opacity(model.contentVisible ? 1 : 0)
+            .animation(.easeIn(duration: 0.2), value: model.contentVisible)
+            // Cross-fade between states. The id change causes SwiftUI to
+            // treat each state as a distinct view, triggering the transition.
+            .id(model.state)
+            .transition(.opacity)
+            .animation(.easeInOut(duration: 0.22), value: model.state)
         }
         .onHover { isHovered = $0 }
     }
@@ -160,7 +167,7 @@ struct NotchFeedbackView: View {
                 model.onChoiceSelected?(nil)
             }
             .font(.system(size: 11))
-            .foregroundStyle(.white.opacity(0.4))
+            .foregroundStyle(.red.opacity(0.8))
             .buttonStyle(.plain)
         }
     }
@@ -211,7 +218,7 @@ private struct NotchChoiceButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.white.opacity(configuration.isPressed ? 0.3 : 0.15))
+                    .fill(Color.accentColor.opacity(configuration.isPressed ? 0.7 : 1.0))
             )
     }
 }
