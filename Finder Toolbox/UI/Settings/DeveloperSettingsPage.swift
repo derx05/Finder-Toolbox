@@ -69,7 +69,7 @@ private struct DevCard<Content: View>: View {
 // MARK: - Notch Feedback section
 
 private struct NotchFeedbackSection: View {
-    @State private var isExpanded: Bool = true
+    @State private var isExpanded: Bool = false
 
     @State private var progressMessage: String = "Processing 12 files…"
     @State private var progressValue: Double = 0.6

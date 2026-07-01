@@ -154,7 +154,7 @@ final class NotchFeedbackPanel: NSPanel {
             let menuBar = NSStatusBar.system.thickness
             return NSRect(
                 x: targetScreen.frame.midX - 80,
-                y: targetScreen.frame.maxY - menuBar - 8 - 4,
+                y: targetScreen.frame.maxY - menuBar - 16 - 4,
                 width: 160,
                 height: 4
             )
@@ -175,7 +175,7 @@ final class NotchFeedbackPanel: NSPanel {
             let menuBar = NSStatusBar.system.thickness
             return NSRect(
                 x: targetScreen.frame.midX - Self.contentWidth / 2,
-                y: targetScreen.frame.maxY - menuBar - 8 - contentHeight,
+                y: targetScreen.frame.maxY - menuBar - 16 - contentHeight,
                 width: Self.contentWidth,
                 height: contentHeight
             )
@@ -186,6 +186,10 @@ final class NotchFeedbackPanel: NSPanel {
 
     func placeCollapsed() {
         setFrame(collapsedFrame, display: false)
+    }
+
+    func placeExpanded(contentHeight: CGFloat) {
+        setFrame(expandedFrame(contentHeight: contentHeight), display: false)
     }
 
     func animateExpand(contentHeight: CGFloat, duration: TimeInterval = 0.38) {
@@ -308,9 +312,20 @@ final class NotchFeedbackController {
         dismissTask = nil
         sizeObserver = nil
         guard let p = panel, p.isVisible else { return }
-        model.contentVisible = false
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak p] in
-            p?.animateCollapse()
+        if p.notchInset > 0 {
+            model.contentVisible = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak p] in
+                p?.animateCollapse()
+            }
+        } else {
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = 0.2
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
+                p.animator().alphaValue = 0
+            }, completionHandler: { [weak p] in
+                p?.orderOut(nil)
+                p?.alphaValue = 1
+            })
         }
     }
 
@@ -326,20 +341,28 @@ final class NotchFeedbackController {
 
         let alreadyExpanded = p.isVisible && model.contentVisible
         if alreadyExpanded {
-            // Already open: resize without collapsing.
             p.animateResize(contentHeight: contentHeight)
-        } else {
-            // Fresh appearance: grow shape from notch seed, then fade content in.
+        } else if p.notchInset > 0 {
+            // Notch screen: grow shape from notch seed, then fade content in.
             model.contentVisible = false
             p.placeCollapsed()
             p.orderFrontRegardless()
-            // Apply corner radius now that the panel is on-screen and the
-            // backing layer is guaranteed to exist (belt over makeBackingLayer
-            // + viewDidMoveToWindow in RoundedContainerView).
             p.applyCorners()
             p.animateExpand(contentHeight: contentHeight)
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.contentFadeDelay) { [weak self] in
                 self?.model.contentVisible = true
+            }
+        } else {
+            // Non-notch: place at final size and fade the whole panel in.
+            model.contentVisible = true
+            p.alphaValue = 0
+            p.placeExpanded(contentHeight: contentHeight)
+            p.orderFrontRegardless()
+            p.applyCorners()
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.2
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                p.animator().alphaValue = 1
             }
         }
     }
