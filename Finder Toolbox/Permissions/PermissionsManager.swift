@@ -65,6 +65,22 @@ final class PermissionsManager: ObservableObject {
         }.value
     }
 
+    func checkMailAutomation() async {
+        guard mailAutomationStatus == .unknown else { return }
+        mailAutomationStatus = await Task.detached(priority: .userInitiated) {
+            Self.probeAutomation(bundleID: "com.apple.mail", askUserIfNeeded: false)
+        }.value
+    }
+
+    func checkFullDiskAccess() async {
+        guard fullDiskAccessStatus == .unknown else { return }
+        fullDiskAccessStatus = await Task.detached(priority: .userInitiated) {
+            FileManager.default.isReadableFile(
+                atPath: "/Library/Application Support/com.apple.TCC/TCC.db"
+            )
+        }.value ? .authorized : .denied
+    }
+
     /// Surface the system Automation prompt for Finder. macOS shows the
     /// dialog if no TCC record exists for this app/target pair yet; if
     /// the user previously denied it, the call returns without

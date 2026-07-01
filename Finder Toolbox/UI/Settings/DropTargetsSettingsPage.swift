@@ -68,6 +68,11 @@ struct DropTargetsSettingsPage: View {
             }
         }
         .formStyle(.grouped)
+        .task {
+            await permissions.checkPermission()
+            await permissions.checkMailAutomation()
+            await permissions.checkFullDiskAccess()
+        }
     }
 
     private func permissionRow(title: String, detail: String, granted: Bool) -> some View {
