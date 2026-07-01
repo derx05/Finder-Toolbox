@@ -145,15 +145,13 @@ final class AppController: ObservableObject {
             case .recursive:
                 resolvedMode = .recursive
             case .ask:
-                let otherCount = initialPlan.renames.count - initialPlan.folderCount
-                switch FolderModeDialog.askFolderMode(
-                    folderCount: initialPlan.foldersInSelection,
-                    otherCount: otherCount
-                ) {
-                case .flat:      resolvedMode = .flat
-                case .recursive: resolvedMode = .recursive
-                case .cancel:    return
-                }
+                let n = initialPlan.foldersInSelection
+                let prompt = n == 1 ? "1 folder in selection" : "\(n) folders in selection"
+                guard let modeId = await NotchFeedbackController.shared.askChoice(
+                    prompt: prompt,
+                    options: [(id: "flat", label: "Files only"), (id: "recursive", label: "Recursive")]
+                ) else { return }
+                resolvedMode = modeId == "recursive" ? .recursive : .flat
             }
         }
 
@@ -171,15 +169,11 @@ final class AppController: ObservableObject {
             case .filesAndFolders:
                 resolvedScope = .filesAndFolders
             case .ask:
-                let fileCount = initialPlan.renames.count - initialPlan.folderCount
-                switch FolderModeDialog.askFolderRenameScope(
-                    folderCount: initialPlan.foldersInSelection,
-                    fileCount: fileCount
-                ) {
-                case .filesOnly:       resolvedScope = .filesOnly
-                case .filesAndFolders: resolvedScope = .filesAndFolders
-                case .cancel:          return
-                }
+                guard let scopeId = await NotchFeedbackController.shared.askChoice(
+                    prompt: "Rename folder names too?",
+                    options: [(id: "filesOnly", label: "Files only"), (id: "filesAndFolders", label: "Files & folders")]
+                ) else { return }
+                resolvedScope = scopeId == "filesAndFolders" ? .filesAndFolders : .filesOnly
             }
         }
 
@@ -213,7 +207,10 @@ final class AppController: ObservableObject {
             }
         }
 
-        if plan.isEmpty { return }
+        if plan.isEmpty {
+            NotchFeedbackController.shared.showSuccess("Nothing to rename")
+            return
+        }
 
         // Resolve any PDF date ambiguities the planner flagged. Cancel-batch
         // from the dialog aborts the whole rename.
@@ -225,7 +222,10 @@ final class AppController: ObservableObject {
             finalPlan = await executor.applyPdfResolutions(plan: plan, resolutions: resolutions)
         }
 
-        if finalPlan.isEmpty { return }
+        if finalPlan.isEmpty {
+            NotchFeedbackController.shared.showSuccess("Nothing to rename")
+            return
+        }
 
         let progressTask = Task { @MainActor in
             try await Task.sleep(for: Self.progressDelay)

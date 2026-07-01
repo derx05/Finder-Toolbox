@@ -60,6 +60,8 @@ struct NotchFeedbackView: View {
         case .error(let message, let detail):
             expandableContent(icon: "xmark.circle.fill", iconColor: .red,
                               message: message, detail: detail)
+        case .choice(let prompt, let options):
+            choiceContent(prompt: prompt, options: options)
         }
     }
 
@@ -135,6 +137,33 @@ struct NotchFeedbackView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: isHovered)
     }
+
+    private func choiceContent(prompt: String, options: [NotchFeedbackState.ChoiceOption]) -> some View {
+        VStack(spacing: 6) {
+            Text(prompt)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+
+            HStack(spacing: 8) {
+                ForEach(options, id: \.id) { option in
+                    Button(option.label) {
+                        model.onChoiceSelected?(option.id)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(NotchChoiceButtonStyle())
+                }
+            }
+
+            Button("Cancel") {
+                model.onChoiceSelected?(nil)
+            }
+            .font(.system(size: 11))
+            .foregroundStyle(.white.opacity(0.4))
+            .buttonStyle(.plain)
+        }
+    }
 }
 
 // MARK: - Supporting views
@@ -169,6 +198,21 @@ private struct IndeterminateSpinner: View {
                     angle = 360
                 }
             }
+    }
+}
+
+private struct NotchChoiceButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.white.opacity(configuration.isPressed ? 0.3 : 0.15))
+            )
     }
 }
 
