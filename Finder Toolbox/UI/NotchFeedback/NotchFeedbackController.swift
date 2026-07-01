@@ -77,10 +77,24 @@ final class NotchFeedbackPanel: NSPanel {
     /// Physical notch dead-zone height. ≈ 32–38 pt on MacBook Pro/Air; 0 elsewhere.
     var notchInset: CGFloat { targetScreen.safeAreaInsets.top }
 
-    // Start width matches the physical notch so the grow animation looks like the
-    // notch itself is expanding.
-    private static let notchNativeWidth: CGFloat = 162
+    /// Actual notch width in points, derived from the auxiliary top areas Apple
+    /// exposes for exactly this purpose. Falls back to 162 pt if the APIs return
+    /// zero (shouldn't happen on notch screens, but safe to guard).
+    /// Formula from NSScreen.auxiliaryTopLeftArea / auxiliaryTopRightArea docs:
+    ///   notchWidth = screen.width − leftAuxWidth − rightAuxWidth
+    private var notchNativeWidth: CGFloat {
+        let left = targetScreen.auxiliaryTopLeftArea?.width ?? 0
+        let right = targetScreen.auxiliaryTopRightArea?.width ?? 0
+        guard left > 0, right > 0 else { return 162 }
+        return targetScreen.frame.width - left - right
+    }
+
     static let contentWidth: CGFloat = 280
+    // All four corners use this radius. On notch screens the panel extends this
+    // many points above the screen boundary so the rounded top corners are
+    // off-screen — the display edge clips them, producing flat-looking top edges
+    // without any maskedCorners tricks.
+    static let cornerRadius: CGFloat = 12
 
     init(model: NotchFeedbackModel, targetScreen: NSScreen) {
         self.targetScreen = targetScreen
@@ -103,20 +117,16 @@ final class NotchFeedbackPanel: NSPanel {
         level = .popUpMenu
         appearance = NSApp.effectiveAppearance
 
-        // Round corners via a custom NSView wrapper whose makeBackingLayer() override
-        // sets cornerRadius at layer-creation time — the only hook guaranteed to run
-        // before any draw cycle. Accessing host.layer directly after wantsLayer=true
-        // returns nil until the first layout pass, which is why prior attempts silently
-        // skipped the configuration.
-        //
-        // We use radius 12 on ALL four corners. On notch screens the physical bezel
-        // covers the top ~notchInset pt of the panel, so the rounded top corners are
-        // never visible; only the bottom two matter visually. No maskedCorners needed.
         let inset = targetScreen.safeAreaInsets.top
-        let container = RoundedContainerView(cornerRadius: 12)
+        let container = RoundedContainerView(cornerRadius: Self.cornerRadius)
         container.autoresizingMask = [.width, .height]
 
-        let host = NSHostingView(rootView: NotchFeedbackView(model: model, topInset: inset))
+        // On notch screens the panel extends cornerRadius pts above the screen boundary
+        // so the rounded top corners fall off-screen. The display edge clips them,
+        // making the top appear flat without maskedCorners. Add cornerRadius to the
+        // topInset so SwiftUI content still starts just below the physical notch.
+        let swiftUITopInset = inset > 0 ? inset + Self.cornerRadius : inset
+        let host = NSHostingView(rootView: NotchFeedbackView(model: model, topInset: swiftUITopInset))
         // Autoresizing mask (not Auto Layout) so the host scales with the container
         // during CoreAnimation frame animations without needing a layout pass.
         host.autoresizingMask = [.width, .height]
@@ -127,17 +137,18 @@ final class NotchFeedbackPanel: NSPanel {
     // MARK: Frame helpers
 
     /// Collapsed "seed" frame used as the animation start point.
-    /// On notch screens: exactly the hardware notch shape (162 × notchInset),
-    /// entirely within the dead zone — nothing is visible yet.
+    /// On notch screens: notch-width pill that extends cornerRadius pts above the
+    /// screen boundary so rounded top corners are always off-screen.
     /// On non-notch: a thin 4 pt pill just below the menu bar.
     private var collapsedFrame: NSRect {
         let inset = notchInset
         if inset > 0 {
+            let w = notchNativeWidth
             return NSRect(
-                x: targetScreen.frame.midX - Self.notchNativeWidth / 2,
+                x: targetScreen.frame.midX - w / 2,
                 y: targetScreen.frame.maxY - inset,
-                width: Self.notchNativeWidth,
-                height: inset
+                width: w,
+                height: inset + Self.cornerRadius
             )
         } else {
             let menuBar = NSStatusBar.system.thickness
@@ -158,7 +169,7 @@ final class NotchFeedbackPanel: NSPanel {
                 x: targetScreen.frame.midX - Self.contentWidth / 2,
                 y: targetScreen.frame.maxY - h,
                 width: Self.contentWidth,
-                height: h
+                height: h + Self.cornerRadius
             )
         } else {
             let menuBar = NSStatusBar.system.thickness
@@ -214,7 +225,7 @@ final class NotchFeedbackPanel: NSPanel {
         if let host = contentView?.subviews.first {
             host.wantsLayer = true
             if let l = host.layer {
-                l.cornerRadius = 12
+                l.cornerRadius = Self.cornerRadius
                 l.cornerCurve = .continuous
                 l.masksToBounds = true
             }
