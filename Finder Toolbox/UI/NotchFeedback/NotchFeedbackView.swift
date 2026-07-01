@@ -54,8 +54,12 @@ struct NotchFeedbackView: View {
             progressContent(message: message, value: value)
         case .success(let message):
             resultContent(icon: "checkmark.circle.fill", iconColor: .green, message: message)
+        case .warning(let message, let detail):
+            expandableContent(icon: "exclamationmark.circle.fill", iconColor: .yellow,
+                              message: message, detail: detail)
         case .error(let message, let detail):
-            errorContent(message: message, detail: detail)
+            expandableContent(icon: "xmark.circle.fill", iconColor: .red,
+                              message: message, detail: detail)
         }
     }
 
@@ -90,11 +94,11 @@ struct NotchFeedbackView: View {
         }
     }
 
-    private func errorContent(message: String, detail: String?) -> some View {
+    private func expandableContent(icon: String, iconColor: Color, message: String, detail: String?) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.red)
+                Image(systemName: icon)
+                    .foregroundStyle(iconColor)
                     .font(.system(size: 16, weight: .semibold))
 
                 Text(message)
@@ -124,7 +128,7 @@ struct NotchFeedbackView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture {
-            guard case .error(_, let detail) = model.state, detail != nil else { return }
+            guard detail != nil else { return }
             withAnimation(.easeInOut(duration: 0.2)) {
                 model.isDetailExpanded.toggle()
             }

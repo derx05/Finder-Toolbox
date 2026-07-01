@@ -7,6 +7,7 @@ import Combine
 enum NotchFeedbackState: Equatable {
     case progress(message: String, value: Double?)   // value nil = indeterminate
     case success(message: String)
+    case warning(message: String, detail: String?)
     case error(message: String, detail: String?)
 }
 
@@ -288,6 +289,23 @@ final class NotchFeedbackController {
             guard !Task.isCancelled else { return }
             self?.dismiss()
         }
+    }
+
+    func showWarning(_ message: String, detail: String? = nil) {
+        dismissTask?.cancel()
+        dismissTask = nil
+        model.isDetailExpanded = false
+        model.state = .warning(message: message, detail: detail)
+        present(contentHeight: Self.contentHeight)
+
+        sizeObserver = model.$isDetailExpanded
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] expanded in
+                guard let self, let p = self.panel else { return }
+                let ch = expanded ? Self.expandedContentHeight : Self.contentHeight
+                p.animateResize(contentHeight: ch)
+            }
     }
 
     func showError(_ message: String, detail: String? = nil) {
