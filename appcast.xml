@@ -30,6 +30,29 @@
         -->
 
         <item>
+            <title>Finder Toolbox 0.2.2-beta.1</title>
+            <sparkle:version>2026.07.01.01</sparkle:version>
+            <sparkle:shortVersionString>0.2.2-beta.1</sparkle:shortVersionString>
+            <sparkle:channel>beta</sparkle:channel>
+            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <ul>
+                    <li>Drop targets: keep overlay visible with a progress indicator while the move/copy operation is in flight.</li>
+                    <li>Drop targets: re-verify the target folder via Apple Events at drop time to catch stale cache entries.</li>
+                    <li>Drop targets: avoid name collision when copying or moving into a folder that already contains a file with the same name.</li>
+                    <li>Settings: probe Full Disk Access and Mail Automation status live on both the File Renaming and Drop Targets settings pages.</li>
+                    <li>Settings: fix login-item toggle in debug builds and wrong-location installs; improve permissions probe reliability.</li>
+                    <li>Internal: notch feedback component (groundwork, not yet surfaced in any UI).</li>
+                </ul>
+            ]]></description>
+            <pubDate>Tue, 01 Jul 2026 12:00:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/derx05/Finder-Toolbox/releases/download/v0.2.2-beta.1/FinderToolbox-0.2.2-beta.1-2026.07.01.01.zip"
+                sparkle:edSignature="rxQIfLvbnydyDL46lafXVQ0pfYPlzwGvDG3y0fhr/aZzLUED3A0Pkelt4yBfwAAiC0GfoPQ5ft6n0LXAV0nAAg==" length="3867018"
+                type="application/octet-stream" />
+        </item>
+
+        <item>
             <title>Finder Toolbox 0.2.1-beta.1</title>
             <sparkle:version>2026.06.08.01</sparkle:version>
             <sparkle:shortVersionString>0.2.1-beta.1</sparkle:shortVersionString>
