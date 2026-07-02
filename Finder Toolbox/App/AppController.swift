@@ -22,7 +22,6 @@ final class AppController: ObservableObject {
     @Published private(set) var lastBatch: [BatchAction] = []
 
     private let executor = RenameExecutor()
-    private var progressController: ProgressWindowController?
 
     /// Delay before the progress panel appears. Short batches finish silently;
     /// longer batches get a visible "Renaming…" indicator.
@@ -125,9 +124,7 @@ final class AppController: ObservableObject {
             SummaryDialog.showPermissionDenied()
             return
         } catch {
-            SummaryDialog.showIfNeeded(BatchSummary(outcomes: [
-                .failed(URL(fileURLWithPath: "/"), error: error.localizedDescription)
-            ]))
+            NotchFeedbackController.shared.showError("Rename failed", detail: error.localizedDescription)
             return
         }
 
@@ -148,15 +145,13 @@ final class AppController: ObservableObject {
             case .recursive:
                 resolvedMode = .recursive
             case .ask:
-                let otherCount = initialPlan.renames.count - initialPlan.folderCount
-                switch FolderModeDialog.askFolderMode(
-                    folderCount: initialPlan.foldersInSelection,
-                    otherCount: otherCount
-                ) {
-                case .flat:      resolvedMode = .flat
-                case .recursive: resolvedMode = .recursive
-                case .cancel:    return
-                }
+                let n = initialPlan.foldersInSelection
+                let prompt = n == 1 ? "1 folder in selection" : "\(n) folders in selection"
+                guard let modeId = await NotchFeedbackController.shared.askChoice(
+                    prompt: prompt,
+                    options: [(id: "flat", label: "Files only"), (id: "recursive", label: "Recursive")]
+                ) else { return }
+                resolvedMode = modeId == "recursive" ? .recursive : .flat
             }
         }
 
@@ -174,15 +169,11 @@ final class AppController: ObservableObject {
             case .filesAndFolders:
                 resolvedScope = .filesAndFolders
             case .ask:
-                let fileCount = initialPlan.renames.count - initialPlan.folderCount
-                switch FolderModeDialog.askFolderRenameScope(
-                    folderCount: initialPlan.foldersInSelection,
-                    fileCount: fileCount
-                ) {
-                case .filesOnly:       resolvedScope = .filesOnly
-                case .filesAndFolders: resolvedScope = .filesAndFolders
-                case .cancel:          return
-                }
+                guard let scopeId = await NotchFeedbackController.shared.askChoice(
+                    prompt: "Rename folder names too?",
+                    options: [(id: "filesOnly", label: "Files only"), (id: "filesAndFolders", label: "Files & folders")]
+                ) else { return }
+                resolvedScope = scopeId == "filesAndFolders" ? .filesAndFolders : .filesOnly
             }
         }
 
@@ -195,9 +186,7 @@ final class AppController: ObservableObject {
             do {
                 plan = try await executor.plan(folderMode: resolvedMode, renameFolders: resolvedScope)
             } catch {
-                SummaryDialog.showIfNeeded(BatchSummary(outcomes: [
-                    .failed(URL(fileURLWithPath: "/"), error: error.localizedDescription)
-                ]))
+                NotchFeedbackController.shared.showError("Rename failed", detail: error.localizedDescription)
                 return
             }
         } else {
@@ -218,7 +207,10 @@ final class AppController: ObservableObject {
             }
         }
 
-        if plan.isEmpty { return }
+        if plan.isEmpty {
+            NotchFeedbackController.shared.showSuccess("Nothing to rename")
+            return
+        }
 
         // Resolve any PDF date ambiguities the planner flagged. Cancel-batch
         // from the dialog aborts the whole rename.
@@ -230,22 +222,22 @@ final class AppController: ObservableObject {
             finalPlan = await executor.applyPdfResolutions(plan: plan, resolutions: resolutions)
         }
 
-        if finalPlan.isEmpty { return }
+        if finalPlan.isEmpty {
+            NotchFeedbackController.shared.showSuccess("Nothing to rename")
+            return
+        }
 
-        let progressTask = Task { @MainActor [weak self] in
+        let progressTask = Task { @MainActor in
             try await Task.sleep(for: Self.progressDelay)
-            let controller = ProgressWindowController()
-            controller.show(fileCount: finalPlan.renames.count)
-            self?.progressController = controller
+            NotchFeedbackController.shared.showProgress("Renaming…")
         }
 
         let summary = await executor.execute(plan: finalPlan)
 
         progressTask.cancel()
-        progressController?.hide()
-        progressController = nil
 
         if PermissionsManager.shared.finderAutomationStatus == .denied {
+            NotchFeedbackController.shared.dismiss()
             SummaryDialog.showPermissionDenied()
             return
         }
@@ -257,7 +249,32 @@ final class AppController: ObservableObject {
             return nil
         }
 
-        SummaryDialog.showIfNeeded(summary)
+        showRenameFeedback(summary)
+    }
+
+    private func showRenameFeedback(_ summary: BatchSummary) {
+        let renamed = summary.renamedCount
+        let failed = summary.failed
+        let skipped = summary.skipped
+
+        if !failed.isEmpty, renamed == 0, skipped.isEmpty {
+            let message = failed.count == 1 ? "Rename failed" : "\(failed.count) renames failed"
+            let detail = failed.map { "\($0.0.lastPathComponent): \($0.1)" }.joined(separator: "\n")
+            NotchFeedbackController.shared.showError(message, detail: detail)
+        } else if !failed.isEmpty {
+            var parts: [String] = []
+            if renamed > 0 { parts.append("\(renamed) renamed") }
+            parts.append("\(failed.count) failed")
+            let detail = failed.map { "\($0.0.lastPathComponent): \($0.1)" }.joined(separator: "\n")
+            NotchFeedbackController.shared.showWarning(parts.joined(separator: " · "), detail: detail)
+        } else if renamed > 0 {
+            var message = "\(renamed) file\(renamed == 1 ? "" : "s") renamed"
+            if !skipped.isEmpty { message += " · \(skipped.count) already up to date" }
+            NotchFeedbackController.shared.showSuccess(message)
+        } else {
+            let message = skipped.count == 1 ? "Already up to date" : "All files already up to date"
+            NotchFeedbackController.shared.showSuccess(message)
+        }
     }
 
     /// Drop-target entry point. Routes drag-and-drop drops onto a Finder-window
