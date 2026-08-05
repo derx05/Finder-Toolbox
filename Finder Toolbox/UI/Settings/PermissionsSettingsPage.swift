@@ -41,6 +41,7 @@ struct PermissionsSettingsPage: View {
         case .automation:     permissions.finderAutomationStatus
         case .automationMail: permissions.mailAutomationStatus
         case .fullDiskAccess: permissions.fullDiskAccessStatus
+        case .accessibility:  permissions.accessibilityStatus
         }
     }
 
@@ -55,6 +56,8 @@ struct PermissionsSettingsPage: View {
             return { Task { await permissions.requestMailAutomation() } }
         case .fullDiskAccess:
             return nil
+        case .accessibility:
+            return { permissions.requestAccessibility() }
         }
     }
 }

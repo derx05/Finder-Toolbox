@@ -34,6 +34,8 @@ final class HotkeyManager {
     var onFire: (() -> Void)?
     /// Fired by the secondary (recursive) hotkey, when enabled.
     var onSecondaryFire: (() -> Void)?
+    /// Fired by the insert-date hotkey, when enabled.
+    var onInsertDateFire: (() -> Void)?
 
     /// Primary hotkey.
     private(set) var keyCode: Int
@@ -44,17 +46,27 @@ final class HotkeyManager {
     private(set) var secondaryKeyCode: Int
     private(set) var secondaryCarbonModifiers: UInt32
 
-    /// Master enable. When false, neither hotkey is registered; setup()
-    /// installs the Carbon handler anyway so re-enabling is a no-op
-    /// fast path. Mirrors `DefaultsKeys.hotkeyEnabled`.
+    /// Insert-date hotkey. Deliberately *not* gated by `isEnabled` — that
+    /// switch is the rename feature's ("Enable rename hotkey" in Settings),
+    /// and this belongs to a different tool.
+    private(set) var insertDateEnabled: Bool
+    private(set) var insertDateKeyCode: Int
+    private(set) var insertDateCarbonModifiers: UInt32
+
+    /// Master enable for the *rename* hotkeys. When false, neither the
+    /// primary nor the secondary hotkey is registered; setup() installs
+    /// the Carbon handler anyway so re-enabling is a no-op fast path.
+    /// Mirrors `DefaultsKeys.hotkeyEnabled`.
     private(set) var isEnabled: Bool
 
     private var primaryRef: EventHotKeyRef?
     private var secondaryRef: EventHotKeyRef?
+    private var insertDateRef: EventHotKeyRef?
     private var handlerRef: EventHandlerRef?
 
     private static let primaryID: UInt32 = 1
     private static let secondaryID: UInt32 = 2
+    private static let insertDateID: UInt32 = 3
 
     private static let defaultKeyCode = kVK_ANSI_R
     // ⌃⌥⌘ in Carbon modifier flags
@@ -62,6 +74,9 @@ final class HotkeyManager {
     private static let defaultSecondaryKeyCode = kVK_ANSI_R
     // ⌃⌥⌘⇧ in Carbon modifier flags
     private static let defaultSecondaryCarbonModifiers = UInt32(controlKey | optionKey | cmdKey | shiftKey)
+    private static let defaultInsertDateKeyCode = kVK_ANSI_D
+    // ⌃⌥⌘ in Carbon modifier flags
+    private static let defaultInsertDateCarbonModifiers = UInt32(controlKey | optionKey | cmdKey)
 
     private init() {
         let d = UserDefaults.standard
@@ -79,6 +94,13 @@ final class HotkeyManager {
             ? UInt32(rawSecondary)
             : HotkeyManager.defaultSecondaryCarbonModifiers
 
+        insertDateEnabled = d.bool(forKey: DefaultsKeys.insertDateHotkeyEnabled)
+        insertDateKeyCode = d.object(forKey: DefaultsKeys.insertDateHotkeyKeyCode) as? Int ?? HotkeyManager.defaultInsertDateKeyCode
+        let rawInsertDate = d.object(forKey: DefaultsKeys.insertDateHotkeyModifiers) as? Int ?? 0
+        insertDateCarbonModifiers = (rawInsertDate > 0 && rawInsertDate <= 8192)
+            ? UInt32(rawInsertDate)
+            : HotkeyManager.defaultInsertDateCarbonModifiers
+
         // `hotkeyEnabled` is seeded to true via DefaultsKeys.registerInitialDefaults;
         // bool(forKey:) returns false for that key only on the rare case where
         // initial defaults haven't been registered yet (test harnesses, etc.).
@@ -88,6 +110,7 @@ final class HotkeyManager {
     // Call once at app launch.
     func setup() {
         installCarbonHandler()
+        if insertDateEnabled { registerInsertDate() }
         guard isEnabled else { return }
         registerPrimary()
         if secondaryEnabled { registerSecondary() }
@@ -139,10 +162,29 @@ final class HotkeyManager {
         if enabled && isEnabled { registerSecondary() } else { unregisterSecondary() }
     }
 
+    func updateInsertDate(keyCode newKey: UInt16, modifiers newMods: NSEvent.ModifierFlags) {
+        unregisterInsertDate()
+        let newKeyInt = Int(newKey)
+        let newCarbonMods = Self.carbonModifiers(from: newMods)
+        insertDateKeyCode = newKeyInt
+        insertDateCarbonModifiers = newCarbonMods
+        UserDefaults.standard.set(newKeyInt, forKey: DefaultsKeys.insertDateHotkeyKeyCode)
+        UserDefaults.standard.set(Int(newCarbonMods), forKey: DefaultsKeys.insertDateHotkeyModifiers)
+        if insertDateEnabled { registerInsertDate() }
+    }
+
+    func setInsertDateEnabled(_ enabled: Bool) {
+        guard enabled != insertDateEnabled else { return }
+        insertDateEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: DefaultsKeys.insertDateHotkeyEnabled)
+        if enabled { registerInsertDate() } else { unregisterInsertDate() }
+    }
+
     func fire(id: UInt32) {
         switch id {
-        case Self.primaryID:   onFire?()
-        case Self.secondaryID: onSecondaryFire?()
+        case Self.primaryID:    onFire?()
+        case Self.secondaryID:  onSecondaryFire?()
+        case Self.insertDateID: onInsertDateFire?()
         default: break
         }
     }
@@ -153,6 +195,10 @@ final class HotkeyManager {
 
     var secondaryShortcutLabel: String {
         Self.label(keyCode: secondaryKeyCode, carbonModifiers: secondaryCarbonModifiers)
+    }
+
+    var insertDateShortcutLabel: String {
+        Self.label(keyCode: insertDateKeyCode, carbonModifiers: insertDateCarbonModifiers)
     }
 
     // MARK: - Private
@@ -186,6 +232,20 @@ final class HotkeyManager {
         id.signature = 0x46545258  // 'FTRX'
         id.id = Self.secondaryID
         RegisterEventHotKey(UInt32(secondaryKeyCode), secondaryCarbonModifiers, id, GetApplicationEventTarget(), 0, &secondaryRef)
+    }
+
+    private func registerInsertDate() {
+        unregisterInsertDate()
+        var id = EventHotKeyID()
+        id.signature = 0x46545258  // 'FTRX'
+        id.id = Self.insertDateID
+        RegisterEventHotKey(UInt32(insertDateKeyCode), insertDateCarbonModifiers, id, GetApplicationEventTarget(), 0, &insertDateRef)
+    }
+
+    private func unregisterInsertDate() {
+        guard let ref = insertDateRef else { return }
+        UnregisterEventHotKey(ref)
+        insertDateRef = nil
     }
 
     private func unregisterPrimary() {

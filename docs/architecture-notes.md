@@ -93,16 +93,31 @@ Hardened Runtime stays on (required for notarization). Sparkle's `Installer.xpc`
 
 ---
 
-## Hotkey library
+## Hotkey registration
 
-Use [`KeyboardShortcuts`](https://github.com/sindresorhus/KeyboardShortcuts) (Sindre Sorhus, SPM) rather than rolling our own `NSEvent.addGlobalMonitorForEvents` plumbing. It provides:
+**Hand-rolled Carbon `RegisterEventHotKey`** (`Hotkey/HotkeyManager.swift`), one slot per shortcut, all sharing the `'FTRX'` signature and dispatched by ID in `fire(id:)`.
 
-- A native `KeyboardShortcuts.Recorder` view for the settings UI.
-- Persistent storage of bindings.
-- A clean callback API for the registered shortcut.
-- No private APIs.
+The original plan was [`KeyboardShortcuts`](https://github.com/sindresorhus/KeyboardShortcuts) (Sindre Sorhus, SPM); it was dropped in favour of the ~240-line Carbon implementation, which keeps the dependency list at one package (Sparkle) and gives direct control over registration timing — the debug-build/release-build hotkey conflict handled in `AppController.init` needs the registration to happen at a precise point in launch. The settings recorder (`UI/Settings/HotkeyRecorderView.swift`) is likewise hand-rolled.
 
-Add via Swift Package Manager. If for some reason it becomes unmaintained or insufficient, fall back to a hand-rolled `NSEvent` global monitor.
+Crucially this path needs **no Input Monitoring and no Accessibility permission**: the system routes a registered hotkey specifically to the app that claimed it, rather than exposing the keyboard stream.
+
+---
+
+## Typing text into other apps (insert-date hotkey)
+
+The insert-date hotkey (`InsertDate/DateInserter.swift`) types today's date into whatever text field has focus. No public API writes into another app's text field, so the choice is between two synthetic-event approaches:
+
+1. Pasteboard + synthesized ⌘V.
+2. `CGEvent` + `keyboardSetUnicodeString`, which attaches a literal string to a key event in place of a keycode.
+
+**We use (2).** It never touches the user's clipboard — nothing to clobber, nothing to restore on a timer — and because the payload is a string rather than a keycode, the result is independent of the active keyboard layout.
+
+Two consequences worth knowing before touching this code:
+
+- **Accessibility is required.** Posting synthetic events is TCC-gated (`AXIsProcessTrusted`). This is the *only* capability in the app that needs it, which is why the feature ships **off by default** and is probed before every insertion rather than assumed. macOS does not apply the grant to an already-running process — the app must be relaunched after the box is ticked.
+- **The hotkey's own modifiers are still held when it fires.** Apps that read global modifier state instead of the flags on the event they're handed would see ⌃⌥⌘ + a character and treat it as a command. `DateInserter` therefore clears the flags on the events it posts *and* waits (bounded, ~0.6 s) for the physical modifiers to be released first.
+
+The inserted format deliberately reuses `DateFormatStyle.current()` — the same setting as the renamer — rather than owning a second picker that can drift out of sync.
 
 ---
 
@@ -117,7 +132,8 @@ Finder Toolbox/
 ├── App/                  # @main, MenuBarExtra root, Settings scene, update controller
 ├── Rename/               # Pure logic: date detection, filename building, PDF/EML extractors
 ├── FinderBridge/         # Apple Events: query selection, perform rename
-├── Hotkey/               # KeyboardShortcuts integration
+├── Hotkey/               # Carbon RegisterEventHotKey wrapper
+├── InsertDate/           # Types today's date into the focused field (CGEvent)
 ├── UI/                   # Progress HUD, summary dialog, conflict & folder-mode dialogs
 │   └── Settings/         # Settings window pages
 ├── Permissions/          # Automation permission state + recovery flow

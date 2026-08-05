@@ -49,6 +49,12 @@ final class AppController: ObservableObject {
         HotkeyManager.shared.onSecondaryFire = { [weak self] in
             Task { @MainActor in await self?.performRename(forcedFolderMode: .recursive) }
         }
+        // Insert-date hotkey. Independent of the rename pipeline — it
+        // doesn't touch Finder, the selection, or any file, so it goes
+        // straight to its own tool rather than through AppController.
+        HotkeyManager.shared.onInsertDateFire = {
+            Task { @MainActor in await DateInserter.insertToday() }
+        }
         HotkeyManager.shared.setup()
 
         // Issue #29 drag-time drop targets. Off by default — gated by

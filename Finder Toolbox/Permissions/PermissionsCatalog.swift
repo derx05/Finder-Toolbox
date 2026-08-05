@@ -13,6 +13,7 @@ enum PermissionsCatalog {
         case automation        // com.apple.security.automation.apple-events → Finder
         case automationMail    // com.apple.security.automation.apple-events → Mail
         case fullDiskAccess    // kTCCServiceSystemPolicyAllFiles
+        case accessibility     // kTCCServiceAccessibility
     }
 
     struct Feature: Hashable {
@@ -95,6 +96,20 @@ enum PermissionsCatalog {
                 ),
             ],
             settingsURL: URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")
+        ),
+        Entry(
+            kind: .accessibility,
+            displayName: "Accessibility",
+            purpose: "Type today's date into the text field you're working in. macOS treats synthesized keystrokes as an accessibility capability, so posting them requires this grant.",
+            tradeoff: "Only relevant if you use the insert-date hotkey, which is off by default. The grant is broad — while it's active Finder Toolbox could read the screen and drive other apps. It uses it for exactly one thing: posting the characters of the date you asked for. Renaming and drop targets never need it.",
+            features: [
+                Feature(
+                    name: "Insert today's date",
+                    detail: "Press the insert-date hotkey and today's date is typed into whatever text field has focus, in any app.",
+                    isRequired: true
+                ),
+            ],
+            settingsURL: URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
         ),
     ]
 }

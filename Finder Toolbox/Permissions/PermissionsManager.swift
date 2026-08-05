@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import ApplicationServices
 import Combine
 import Carbon
 
@@ -24,6 +25,11 @@ final class PermissionsManager: ObservableObject {
     /// after the user toggles FDA in System Settings.
     @Published private(set) var fullDiskAccessStatus: Status = .unknown
 
+    /// TCC Accessibility grant. Needed only to post synthetic keystrokes
+    /// for the insert-date hotkey (`DateInserter`). Probed with
+    /// `AXIsProcessTrusted()`, which never prompts.
+    @Published private(set) var accessibilityStatus: Status = .unknown
+
     func markDenied() { finderAutomationStatus = .denied }
 
     private init() {}
@@ -32,14 +38,16 @@ final class PermissionsManager: ObservableObject {
     /// Permissions settings page when it appears and when the app becomes
     /// active again (covering the System Settings round-trip).
     ///
-    /// All three probes run concurrently off the main thread so
-    /// `AEDeterminePermissionToAutomateTarget` never blocks the main actor
-    /// while SwiftUI is trying to render. Results are published together
-    /// once all probes complete.
+    /// The Automation and FDA probes run concurrently off the main thread
+    /// so `AEDeterminePermissionToAutomateTarget` never blocks the main
+    /// actor while SwiftUI is trying to render. Results are published
+    /// together once all probes complete. `AXIsProcessTrusted` is a cheap
+    /// local check and stays on the main actor.
     func refreshAll() async {
         finderAutomationStatus = .unknown
         mailAutomationStatus = .unknown
         fullDiskAccessStatus = .unknown
+        accessibilityStatus = .unknown
 
         async let finder: Status = Task.detached(priority: .userInitiated) {
             Self.probeAutomation(bundleID: "com.apple.finder", askUserIfNeeded: false)
@@ -56,6 +64,31 @@ final class PermissionsManager: ObservableObject {
         finderAutomationStatus = await finder
         mailAutomationStatus = await mail
         fullDiskAccessStatus = await fda ? .authorized : .denied
+        accessibilityStatus = AXIsProcessTrusted() ? .authorized : .denied
+    }
+
+    func checkAccessibility() {
+        accessibilityStatus = AXIsProcessTrusted() ? .authorized : .denied
+    }
+
+    /// Raise the system Accessibility prompt (the "Open System Settings"
+    /// alert). macOS shows it only while no TCC decision exists for this
+    /// app; once the user has answered once, the alert is suppressed and
+    /// System Settings is the only route — which is why the Permissions
+    /// page always offers the deep link alongside this.
+    ///
+    /// The grant does not apply to the running process: macOS requires the
+    /// app to be relaunched after it's ticked. The settings UI says so.
+    func requestAccessibility() {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        accessibilityStatus = AXIsProcessTrustedWithOptions(options) ? .authorized : .denied
+    }
+
+    /// True when synthetic keystrokes can actually be posted. Callers use
+    /// this to short-circuit with a clear message instead of silently
+    /// posting events the window server drops.
+    nonisolated func hasAccessibility() -> Bool {
+        AXIsProcessTrusted()
     }
 
     func checkPermission() async {

@@ -26,6 +26,15 @@ nonisolated enum DefaultsKeys {
     static let secondaryHotkeyKeyCode   = "hk.secondaryKeyCode"
     static let secondaryHotkeyModifiers = "hk.secondaryModifiers"
 
+    // Insert-date hotkey — types today's date into whatever text field has
+    // focus. Independent of `hotkeyEnabled`: that switch belongs to the
+    // rename feature, this one to a different tool. Off by default because
+    // it's the only capability that needs an Accessibility grant, and a
+    // registered-but-broken global shortcut is worse than none.
+    static let insertDateHotkeyEnabled   = "hk.insertDateEnabled"
+    static let insertDateHotkeyKeyCode   = "hk.insertDateKeyCode"
+    static let insertDateHotkeyModifiers = "hk.insertDateModifiers"
+
     // Rename
     static let cleanupTrimStem      = "cleanup.trimStemWhitespace"
     static let emlUseDateHeader     = "eml.useDateHeader"
@@ -102,6 +111,7 @@ nonisolated enum DefaultsKeys {
     nonisolated static func registerInitialDefaults() {
         UserDefaults.standard.register(defaults: [
             hotkeyEnabled:              true,
+            insertDateHotkeyEnabled:    false,
             emlUseDateHeader:           true,
             dateFormatStyle:            "system", // DateFormatStyle.default
             datePriority:               "content", // DatePriority.default

@@ -6,6 +6,7 @@ enum SettingsPage: Hashable {
     case general
     case fileRenaming
     case dropTargets
+    case insertDate
     case permissions
     case advanced
     case developer
@@ -39,6 +40,10 @@ struct SettingsView: View {
                     .toolbar(.hidden)
             case .dropTargets:
                 DropTargetsSettingsPage()
+                    .navigationTitle("")
+                    .toolbar(.hidden)
+            case .insertDate:
+                InsertDateSettingsPage()
                     .navigationTitle("")
                     .toolbar(.hidden)
             case .permissions:
@@ -105,6 +110,12 @@ private struct SettingsSidebar: View {
                 }
                 NavigationLink(value: SettingsPage.dropTargets) {
                     Label("Drop Targets", systemImage: "square.and.arrow.down.on.square")
+                }
+            }
+
+            Section("Insert Date") {
+                NavigationLink(value: SettingsPage.insertDate) {
+                    Label("General", systemImage: "calendar.badge.plus")
                 }
             }
 

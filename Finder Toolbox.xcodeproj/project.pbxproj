@@ -355,7 +355,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Finder Toolbox/Finder Toolbox.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2026.07.01.01;
+				CURRENT_PROJECT_VERSION = 2026.08.05.01;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = S5RTVC5QRF;
 				ENABLE_APP_SANDBOX = NO;
@@ -375,8 +375,9 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = "0.2.2-beta.1";
+				MARKETING_VERSION = "0.2.3-beta.1";
 				PRODUCT_BUNDLE_IDENTIFIER = "danielammann.Finder-Toolbox.debug";
+				PRODUCT_MODULE_NAME = Finder_Toolbox;
 				PRODUCT_NAME = "$(TARGET_NAME)-Debug";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -396,7 +397,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Finder Toolbox/Finder Toolbox.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2026.07.01.01;
+				CURRENT_PROJECT_VERSION = 2026.08.05.01;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = S5RTVC5QRF;
 				ENABLE_APP_SANDBOX = NO;
@@ -416,7 +417,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = "0.2.2-beta.1";
+				MARKETING_VERSION = "0.2.3-beta.1";
 				PRODUCT_BUNDLE_IDENTIFIER = "danielammann.Finder-Toolbox";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -452,7 +453,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Finder Toolbox.app/Contents/MacOS/Finder Toolbox";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Finder Toolbox-Debug.app/Contents/MacOS/Finder Toolbox-Debug";
 			};
 			name = Debug;
 		};

@@ -45,8 +45,38 @@ final class DropOverlayView: NSView {
     private let highlightLayer = CALayer()
     private let iconView = NSImageView()
     private let spinner = NSProgressIndicator()
-    private let titleLabel = NSTextField(labelWithString: "File Renamer")
+    private let titleLabel = NSTextField(labelWithString: DropOverlayView.titleText)
     private let folderLabel = NSTextField(labelWithString: "")
+
+    // MARK: - Layout metrics
+    //
+    // Shared with `DropOverlayPanel` so the panel can size itself to its
+    // content instead of truncating the folder name. Keep these in sync
+    // with the constraints and label fonts set up in `init`.
+
+    static let titleText = "File Renamer"
+    private static let iconLeading: CGFloat = 12
+    private static let iconSide: CGFloat = 26
+    private static let iconTextGap: CGFloat = 10
+    private static let textTrailing: CGFloat = 10
+    private static let titleFont = NSFont.systemFont(ofSize: 13, weight: .semibold)
+    private static let folderFont = NSFont.systemFont(ofSize: 11, weight: .regular)
+
+    /// Width at which both labels render untruncated. The panel clamps
+    /// this into its own min/max range — this function only reports what
+    /// the content wants, not what it gets.
+    ///
+    /// The title is measured from the static `titleText` rather than the
+    /// live label: the in-flight verbs it's swapped to ("Renaming…",
+    /// "Done", …) are all narrower, so they never need more room than the
+    /// panel already has, and re-sizing the panel mid-transfer would move
+    /// a target the user is still looking at.
+    static func preferredWidth(folderName: String) -> CGFloat {
+        let chrome = iconLeading + iconSide + iconTextGap + textTrailing
+        let title = (titleText as NSString).size(withAttributes: [.font: titleFont]).width
+        let folder = (folderName as NSString).size(withAttributes: [.font: folderFont]).width
+        return ceil(chrome + max(title, folder))
+    }
 
     /// Guards `onProcessingBegan` against firing more than once per drop —
     /// `performDragOperation` has several accept branches.
@@ -131,13 +161,13 @@ final class DropOverlayView: NSView {
         spinner.isDisplayedWhenStopped = false
         spinner.translatesAutoresizingMaskIntoConstraints = false
 
-        titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        titleLabel.font = Self.titleFont
         titleLabel.textColor = .labelColor
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
         folderLabel.stringValue = folderName
-        folderLabel.font = .systemFont(ofSize: 11, weight: .regular)
+        folderLabel.font = Self.folderFont
         folderLabel.textColor = .secondaryLabelColor
         folderLabel.lineBreakMode = .byTruncatingMiddle
         folderLabel.translatesAutoresizingMaskIntoConstraints = false
