@@ -9,7 +9,14 @@ final class DropOverlayPanel: NSPanel {
 
     private(set) var target: FinderWindow
 
+    /// Minimum panel size — also the size used while the target folder is
+    /// still being resolved. A drop target narrower than this is awkward
+    /// to hit mid-drag, so short folder names don't shrink it.
     static let panelSize = NSSize(width: 210, height: 58)
+    /// Upper bound on content-driven growth. Past this the folder label
+    /// truncates again; an overlay wider than this stops reading as a
+    /// pill and starts covering the window it's anchored to.
+    static let maxPanelWidth: CGFloat = 340
     /// Inset from the Finder window's bottom-right corner. Matches the
     /// window's corner radius so the overlay sits flush against the
     /// inside of the rounded corner without visually clipping it.
@@ -17,17 +24,24 @@ final class DropOverlayPanel: NSPanel {
 
     /// Update the panel's target folder + window title after the Apple
     /// Events resolution to Finder returns. The on-screen label refreshes
-    /// in place; the panel's frame doesn't move because windowID and
-    /// screenRect are known at construction time and don't change.
+    /// in place, and the panel re-sizes to fit the resolved folder name —
+    /// leftward, see `resizeToFit`. The anchor corner is unaffected:
+    /// windowID and screenRect are known at construction time and don't
+    /// change.
     func setTarget(folder: URL, title: String) {
         target.targetFolder = folder
         target.title = title
         (contentView as? DropOverlayView)?.setTarget(folderName: folder.lastPathComponent, targetFolder: folder)
+        resizeToFit(folderName: folder.lastPathComponent)
     }
 
     init(target: FinderWindow) {
         self.target = target
-        let frame = Self.overlayFrame(for: target)
+        let width = Self.preferredWidth(
+            folderName: target.targetFolder?.lastPathComponent ?? "",
+            in: target.screenRect
+        )
+        let frame = Self.overlayFrame(for: target, width: width)
         super.init(
             contentRect: frame,
             styleMask: [.nonactivatingPanel, .borderless],
@@ -60,13 +74,41 @@ final class DropOverlayPanel: NSPanel {
         contentView = view
     }
 
+    /// Width the overlay should have for `folderName`, given the Finder
+    /// window it's anchored to. Content-driven, clamped to
+    /// `[panelSize.width, maxPanelWidth]` and further capped to the
+    /// window's own width so the pill never spills out the left side of
+    /// a narrow Finder window. Windows narrower than the minimum keep
+    /// the minimum — a sub-210pt drop target isn't worth showing.
+    static func preferredWidth(folderName: String, in rect: NSRect) -> CGFloat {
+        let available = rect.width - cornerInset * 2
+        let upper = max(panelSize.width, min(maxPanelWidth, available))
+        let content = DropOverlayView.preferredWidth(folderName: folderName)
+        return min(max(content, panelSize.width), upper)
+    }
+
+    /// Re-apply the frame for a new label width. The right edge stays
+    /// pinned to the Finder window's inside corner, so the panel grows
+    /// leftward — growing rightward would push it past the window's edge,
+    /// and off-screen entirely for a window flush with the right edge of
+    /// the display. Not animated: the panel is a live drop target while
+    /// this fires (the Apple Events resolution lands mid-drag), and a
+    /// target that slides under the cursor is harder to hit than one that
+    /// simply is where it is.
+    private func resizeToFit(folderName: String) {
+        let width = Self.preferredWidth(folderName: folderName, in: target.screenRect)
+        guard abs(width - frame.width) > 0.5 else { return }
+        setFrame(Self.overlayFrame(for: target, width: width), display: true)
+    }
+
     /// Compute the on-screen frame for this overlay: anchored to the
     /// inside of the Finder window's bottom-right corner, inset by
-    /// `cornerInset` on both edges. Clamped to the screen's visible
-    /// frame as a final safety net (for unusually small Finder windows
-    /// whose bottom edge is below the dock).
-    static func overlayFrame(for target: FinderWindow) -> NSRect {
-        let size = panelSize
+    /// `cornerInset` on both edges. Extra width is taken from the left
+    /// because the right edge is the anchor. Clamped to the screen's
+    /// visible frame as a final safety net (for unusually small Finder
+    /// windows whose bottom edge is below the dock).
+    static func overlayFrame(for target: FinderWindow, width: CGFloat? = nil) -> NSRect {
+        let size = NSSize(width: width ?? panelSize.width, height: panelSize.height)
         let rect = target.screenRect
         var x = rect.maxX - size.width - cornerInset
         var y = rect.minY + cornerInset
