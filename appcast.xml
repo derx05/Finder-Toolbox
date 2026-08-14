@@ -30,6 +30,31 @@
         -->
 
         <item>
+            <title>Finder Toolbox 0.2.3-beta.1</title>
+            <sparkle:version>2026.08.14.01</sparkle:version>
+            <sparkle:shortVersionString>0.2.3-beta.1</sparkle:shortVersionString>
+            <sparkle:channel>beta</sparkle:channel>
+            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <ul>
+                    <li>New: insert-date hotkey — types today's date (in the shared date format) into whatever text field has keyboard focus, in any app.</li>
+                    <li>Hotkeys reworked: one shared modifier prefix (General → Keyboard shortcuts, default ⌃⌥⌘) plus a per-feature key; ⇧ can be part of the key. Existing shortcuts migrate automatically.</li>
+                    <li>General settings shows an overview of all active shortcuts; duplicate keys are rejected with an inline warning.</li>
+                    <li>Renamer: placeholder dates — 00 marks unknown precision (260000 → 2026-00-00 for a whole year, 250100 → 2025-01-00 for a whole month), rendered in every output style.</li>
+                    <li>Renamer: bare-year and year-month prefixes are recognized ("2026 Taxes", "26_Taxes", "2026-07 Statements") and normalized to placeholder dates.</li>
+                    <li>Renamer: names that would exceed the 255-byte filesystem limit are truncated instead of failing — date prefix and extension are always preserved.</li>
+                    <li>Notch feedback for rename results, folder-rename mode, and empty selections.</li>
+                    <li>Drop targets: overlay width is anchored so targets no longer shift while dragging.</li>
+                </ul>
+            ]]></description>
+            <pubDate>Fri, 14 Aug 2026 12:00:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/derx05/Finder-Toolbox/releases/download/v0.2.3-beta.1/FinderToolbox-0.2.3-beta.1-2026.08.14.01.zip"
+                sparkle:edSignature="K+01ryxh6oAEsJYazRUn+c2lfNKWY0RRLIzIqpqMoQasLdewuN5jzlhZmI4TAJiZ9P1qBbxMoGo+xjzTU+1IBQ==" length="3948770"
+                type="application/octet-stream" />
+        </item>
+
+        <item>
             <title>Finder Toolbox 0.2.2-beta.1</title>
             <sparkle:version>2026.07.01.01</sparkle:version>
             <sparkle:shortVersionString>0.2.2-beta.1</sparkle:shortVersionString>
