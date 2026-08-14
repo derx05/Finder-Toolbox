@@ -1,35 +1,39 @@
 import SwiftUI
 import AppKit
 
-/// Settings row that presents the current global shortcut and offers a
-/// "click to record" affordance.
+/// Settings row that presents a feature's full shortcut (prefix + key) and
+/// offers a "click to record" affordance for the *key* part only. The
+/// modifier prefix is an app-wide setting (General → Keyboard shortcuts);
+/// here the user records just a key, optionally with ⇧ for variants like
+/// "same key, shifted = recursive".
 struct HotkeyRow: View {
     let title: String
     let label: String
     @Binding var isRecording: Bool
-    let onNewShortcut: (UInt16, NSEvent.ModifierFlags) -> Void
+    /// Called with the recorded key code and whether ⇧ was held.
+    let onNewKey: (UInt16, Bool) -> Void
 
     init(
         title: String = "Global Shortcut",
         label: String,
         isRecording: Binding<Bool>,
-        onNewShortcut: @escaping (UInt16, NSEvent.ModifierFlags) -> Void
+        onNewKey: @escaping (UInt16, Bool) -> Void
     ) {
         self.title = title
         self.label = label
         self._isRecording = isRecording
-        self.onNewShortcut = onNewShortcut
+        self.onNewKey = onNewKey
     }
 
     var body: some View {
         LabeledContent(title) {
             HotkeyRecorderView(
-                displayLabel: isRecording ? "Press keys…" : label,
+                displayLabel: isRecording ? "Press key…" : label,
                 isRecording: isRecording,
                 onTap: { isRecording = true },
-                onNewShortcut: { keyCode, mods in
+                onNewKey: { keyCode, shift in
                     isRecording = false
-                    onNewShortcut(keyCode, mods)
+                    onNewKey(keyCode, shift)
                 },
                 onCancel: { isRecording = false }
             )
@@ -38,8 +42,10 @@ struct HotkeyRow: View {
     }
 }
 
-/// NSButton subclass that records the next chord (modifier+key) the user
-/// presses while in recording mode.
+/// NSButton subclass that records the next key the user presses while in
+/// recording mode. Only ⇧ is honored as part of the recording — the other
+/// modifiers belong to the shared prefix and are stripped, so pressing the
+/// full combo out of habit records the same thing as pressing the bare key.
 ///
 /// We sit on the AppKit level rather than using a SwiftUI key handler so we
 /// can intercept the raw `keyCode` — SwiftUI's key handling normalises some
@@ -48,7 +54,7 @@ struct HotkeyRecorderView: NSViewRepresentable {
     let displayLabel: String
     let isRecording: Bool
     let onTap: () -> Void
-    let onNewShortcut: (UInt16, NSEvent.ModifierFlags) -> Void
+    let onNewKey: (UInt16, Bool) -> Void
     let onCancel: () -> Void
 
     func makeNSView(context: Context) -> RecorderButton {
@@ -56,7 +62,7 @@ struct HotkeyRecorderView: NSViewRepresentable {
         button.target = context.coordinator
         button.action = #selector(Coordinator.tapped)
         context.coordinator.view = button
-        context.coordinator.onNewShortcut = onNewShortcut
+        context.coordinator.onNewKey = onNewKey
         context.coordinator.onCancel = onCancel
         return button
     }
@@ -64,7 +70,7 @@ struct HotkeyRecorderView: NSViewRepresentable {
     func updateNSView(_ button: RecorderButton, context: Context) {
         button.title = displayLabel
         button.isRecording = isRecording
-        context.coordinator.onNewShortcut = onNewShortcut
+        context.coordinator.onNewKey = onNewKey
         context.coordinator.onCancel = onCancel
         if isRecording {
             button.window?.makeFirstResponder(button)
@@ -76,7 +82,7 @@ struct HotkeyRecorderView: NSViewRepresentable {
     final class Coordinator: NSObject {
         weak var view: RecorderButton?
         var onTap: () -> Void
-        var onNewShortcut: ((UInt16, NSEvent.ModifierFlags) -> Void)?
+        var onNewKey: ((UInt16, Bool) -> Void)?
         var onCancel: (() -> Void)?
 
         init(onTap: @escaping () -> Void) { self.onTap = onTap }
@@ -101,12 +107,8 @@ struct HotkeyRecorderView: NSViewRepresentable {
                 return
             }
 
-            // Require at least one modifier — bare keys would conflict with
-            // typing in any other app.
-            let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            guard !mods.isEmpty else { return }
-
-            (target as? Coordinator)?.onNewShortcut?(event.keyCode, mods)
+            let shift = event.modifierFlags.contains(.shift)
+            (target as? Coordinator)?.onNewKey?(event.keyCode, shift)
         }
     }
 }
