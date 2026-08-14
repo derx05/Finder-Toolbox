@@ -57,8 +57,15 @@ enum DateDetector {
     // MARK: - Helpers
 
     nonisolated private static func isValidDate(_ comps: DateComponents) -> Bool {
-        guard let y = comps.year, let m = comps.month, let d = comps.day,
-              m >= 1, m <= 12, d >= 1, d <= 31 else { return false }
+        guard let y = comps.year, let m = comps.month, let d = comps.day else { return false }
+        // Placeholder dates: "00" zeroes out precision the user doesn't have
+        // (260000 = sometime in 2026, 250100 = sometime in Jan 2025). Day 00
+        // needs a real (or zero) month; month 00 with a non-zero day is
+        // meaningless and stays rejected. These never reach Calendar — month
+        // 0 would silently roll over into the previous year.
+        if m == 0 { return d == 0 }
+        if d == 0 { return m >= 1 && m <= 12 }
+        guard m >= 1, m <= 12, d >= 1, d <= 31 else { return false }
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(secondsFromGMT: 0)!
         guard let date = cal.date(from: comps) else { return false }
@@ -74,6 +81,13 @@ enum DateDetector {
         func regex(_ pattern: String) -> NSRegularExpression {
             // All patterns are anchored to start of string.
             try! NSRegularExpression(pattern: "^" + pattern + "[ _-]?")
+        }
+
+        // For patterns that need their own anchoring/boundaries (the
+        // partial-precision placeholder forms) rather than the standard
+        // "^…[ _-]?" wrapping.
+        func raw(_ pattern: String) -> NSRegularExpression {
+            try! NSRegularExpression(pattern: pattern)
         }
 
         // For two ambiguous two-digit fields followed by a 4-digit year, the
@@ -160,6 +174,34 @@ enum DateDetector {
             PatternEntry(regex: regex(#"(\d{2})(\d{2})(\d{2})"#)) { g in
                 guard let yy = Int(g[0]), let m = Int(g[1]), let d = Int(g[2]) else { return nil }
                 return (fullYear(from: yy), m, d)
+            },
+            // Partial-precision placeholder forms below — the input
+            // conventions "2026-05 Text", "2026 Text", "2026_Text", "26 Text"
+            // where missing fields mean "unknown" and render as 00. Must come
+            // after every full-date pattern so real dates always win. The
+            // rendered 00-forms ("2026-00-00") are parsed by the patterns
+            // above, not these.
+            //
+            // YYYY-MM / YYYY_MM → month-precision placeholder. `(?!\d)` keeps
+            // it from eating the first two digits of a longer number.
+            PatternEntry(regex: raw(#"^(\d{4})[-_](\d{2})(?!\d)[ _-]?"#)) { g in
+                guard let y = Int(g[0]), let m = Int(g[1]), y >= 1900, y <= 2099 else { return nil }
+                return (y, m, 0)
+            },
+            // Bare YYYY → whole-year placeholder. Space/underscore separators
+            // only (or nothing but the year): "2026-Foo" stays untouched so a
+            // dashed year can't shadow partially-typed dashed dates.
+            PatternEntry(regex: raw(#"^(\d{4})(?:[ _]+|$)"#)) { g in
+                guard let y = Int(g[0]), y >= 1900, y <= 2099 else { return nil }
+                return (y, 0, 0)
+            },
+            // Bare YY → whole-year placeholder. Deliberately the very last
+            // pattern: ANY two leading digits followed by space/underscore
+            // parse as a year, which collides with track/list numbering
+            // ("01 Intro" → 2001). Full dates and 4-digit years all win first.
+            PatternEntry(regex: raw(#"^(\d{2})(?:[ _]+|$)"#)) { g in
+                guard let yy = Int(g[0]) else { return nil }
+                return (fullYear(from: yy), 0, 0)
             },
         ]
     }

@@ -13,18 +13,39 @@ nonisolated enum DefaultsKeys {
     static let dockMode             = "app.dockMode"
     static let menuBarShowIcon      = "menuBar.showIcon"
 
-    // Hotkey. `hotkeyEnabled` is the master switch: when false, neither
-    // primary nor secondary hotkey is registered. Users who only want
-    // the drag-time drop targets can disable the hotkey for efficiency
-    // and to avoid claiming a global shortcut.
+    // Hotkeys use a prefix+key model: `hotkeyPrefixModifiers` is the single
+    // app-wide modifier prefix (Carbon flags, set in General settings); each
+    // feature stores only its key code plus a ⇧ flag. `hotkeyEnabled` is the
+    // master switch for the rename hotkeys: when false, neither primary nor
+    // secondary is registered. Users who only want the drag-time drop targets
+    // can disable the hotkey for efficiency and to avoid claiming a global
+    // shortcut.
+    //
+    // The legacy per-feature full-modifier keys (`hk.modifiers` etc.) are
+    // still *written* with the effective combos so a downgrade to a
+    // pre-prefix beta build keeps working; they're only read once, by the
+    // migration in `HotkeyManager.init`.
+    static let hotkeyPrefixModifiers = "hk.prefixModifiers"
     static let hotkeyEnabled        = "hk.enabled"
     static let hotkeyKeyCode        = "hk.keyCode"
-    static let hotkeyModifiers      = "hk.modifiers"
+    static let hotkeyPrimaryShift   = "hk.primaryShift"
+    static let hotkeyModifiers      = "hk.modifiers"          // legacy write-through
 
     // Secondary hotkey (recursive rename) — see FolderMode.
     static let secondaryHotkeyEnabled   = "hk.secondaryEnabled"
     static let secondaryHotkeyKeyCode   = "hk.secondaryKeyCode"
-    static let secondaryHotkeyModifiers = "hk.secondaryModifiers"
+    static let secondaryHotkeyShift     = "hk.secondaryShift"
+    static let secondaryHotkeyModifiers = "hk.secondaryModifiers"  // legacy write-through
+
+    // Insert-date hotkey — types today's date into whatever text field has
+    // focus. Independent of `hotkeyEnabled`: that switch belongs to the
+    // rename feature, this one to a different tool. Off by default because
+    // it's the only capability that needs an Accessibility grant, and a
+    // registered-but-broken global shortcut is worse than none.
+    static let insertDateHotkeyEnabled   = "hk.insertDateEnabled"
+    static let insertDateHotkeyKeyCode   = "hk.insertDateKeyCode"
+    static let insertDateHotkeyShift     = "hk.insertDateShift"
+    static let insertDateHotkeyModifiers = "hk.insertDateModifiers"  // legacy write-through
 
     // Rename
     static let cleanupTrimStem      = "cleanup.trimStemWhitespace"
@@ -102,6 +123,7 @@ nonisolated enum DefaultsKeys {
     nonisolated static func registerInitialDefaults() {
         UserDefaults.standard.register(defaults: [
             hotkeyEnabled:              true,
+            insertDateHotkeyEnabled:    false,
             emlUseDateHeader:           true,
             dateFormatStyle:            "system", // DateFormatStyle.default
             datePriority:               "content", // DatePriority.default

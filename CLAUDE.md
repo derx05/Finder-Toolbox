@@ -17,11 +17,15 @@ For the full product context, read in this order:
 
 ## Build / Run
 
-There is no test target and no SPM package — just the Xcode project. (A test target for `DateDetector` / `EmlDateExtractor` is still outstanding — see `ROADMAP.md`.) Use `xcodebuild` from the repo root (note the spaces in the project path):
+One Xcode project, one SPM dependency (Sparkle), and a unit test target (`Finder ToolboxTests/`) covering `DateDetector`, `EmlDateExtractor`, `PdfDateExtractor`, and `DropOverlayPanel` geometry. Use `xcodebuild` from the repo root (note the spaces in the project path):
 
 ```sh
 # Build (Debug)
 xcodebuild -project "Finder Toolbox.xcodeproj" -scheme "Finder Toolbox" -configuration Debug build
+
+# Test — Debug only; Release has ENABLE_TESTABILITY off, so @testable fails there
+xcodebuild test -project "Finder Toolbox.xcodeproj" -scheme "Finder Toolbox" \
+  -configuration Debug -destination 'platform=macOS'
 
 # Clean
 xcodebuild -project "Finder Toolbox.xcodeproj" -scheme "Finder Toolbox" clean
@@ -35,7 +39,8 @@ Most day-to-day iteration is expected to happen in Xcode (⌘R / ⌘B / SwiftUI 
 ## Project structure conventions
 
 - The target uses `PBXFileSystemSynchronizedRootGroup` — **new `.swift` files dropped into `Finder Toolbox/` are picked up automatically**. Do not hand-edit `project.pbxproj` to register new files.
-- Folder layout inside `Finder Toolbox/`: `App/`, `Rename/`, `FinderBridge/`, `Hotkey/`, `UI/` (with `UI/Settings/`), `Permissions/`, `Support/`. See `docs/architecture-notes.md` for rationale. These are filesystem folders, not Xcode groups.
+- Folder layout inside `Finder Toolbox/`: `App/`, `Rename/`, `FinderBridge/`, `Hotkey/`, `InsertDate/`, `DropTargets/`, `UI/` (with `UI/Settings/`), `Permissions/`, `Support/`. See `docs/architecture-notes.md` for rationale. These are filesystem folders, not Xcode groups.
+- The scheme is **shared** (`Finder Toolbox.xcodeproj/xcshareddata/xcschemes/`) so `xcodebuild` sees the same build/test actions Xcode does. In Debug the app's `PRODUCT_NAME` is `Finder Toolbox-Debug`; `PRODUCT_MODULE_NAME` is pinned to `Finder_Toolbox` in both configurations so `@testable import Finder_Toolbox` resolves regardless of configuration.
 - Asset catalog lives at `Finder Toolbox/Assets.xcassets/` (uses `AppIcon` and `AccentColor`). Swift symbols for assets are generated (`ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES`).
 - Localization prefers String Catalogs (`LOCALIZATION_PREFERS_STRING_CATALOGS = YES`, `STRING_CATALOG_GENERATE_SYMBOLS = YES`) — add a `.xcstrings` file rather than `.strings` if you need localization.
 - Info.plist is generated (`GENERATE_INFOPLIST_FILE = YES`); add Info.plist keys via `INFOPLIST_KEY_*` build settings, not by creating an Info.plist file. The menu-bar-only behavior is set via `INFOPLIST_KEY_LSUIElement = YES`, and the Automation usage string via `INFOPLIST_KEY_NSAppleEventsUsageDescription` — both already wired.

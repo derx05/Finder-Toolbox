@@ -6,11 +6,10 @@ import Combine
 struct FileRenamingSettingsPage: View {
     @StateObject private var permissions = PermissionsManager.shared
 
+    @ObservedObject private var hotkeys = HotkeyManager.shared
     @State private var isRecordingPrimary = false
     @State private var isRecordingSecondary = false
-    @State private var primaryHotkeyLabel = HotkeyManager.shared.currentShortcutLabel
-    @State private var secondaryHotkeyLabel = HotkeyManager.shared.secondaryShortcutLabel
-    @State private var secondaryEnabled = HotkeyManager.shared.secondaryEnabled
+    @State private var keyConflictMessage: String?
     @AppStorage(DefaultsKeys.hotkeyEnabled) private var hotkeyEnabled = true
 
     @AppStorage(DefaultsKeys.cleanupTrimStem) private var trimStemWhitespace = false
@@ -86,6 +85,15 @@ struct FileRenamingSettingsPage: View {
         )
     }
 
+    private func recordKey(for feature: HotkeyFeature, keyCode: UInt16, shift: Bool) {
+        if HotkeyManager.shared.updateKey(for: feature, keyCode: Int(keyCode), shift: shift) {
+            keyConflictMessage = nil
+        } else {
+            let key = (shift ? "⇧" : "") + HotkeyManager.keyName(for: Int(keyCode))
+            keyConflictMessage = "\(key) is already used by another Finder Toolbox shortcut."
+        }
+    }
+
     var body: some View {
         Form {
             Section("Hotkey") {
@@ -107,22 +115,18 @@ struct FileRenamingSettingsPage: View {
 
                 if hotkeyEnabled {
                     HotkeyRow(
-                        title: secondaryEnabled ? "Rename (non-recursive)" : "Global Shortcut",
-                        label: primaryHotkeyLabel,
+                        title: hotkeys.secondaryEnabled ? "Rename (non-recursive)" : "Global Shortcut",
+                        label: hotkeys.shortcutLabel(for: .renamePrimary),
                         isRecording: $isRecordingPrimary,
-                        onNewShortcut: { keyCode, modifiers in
-                            HotkeyManager.shared.update(keyCode: keyCode, modifiers: modifiers)
-                            primaryHotkeyLabel = HotkeyManager.shared.currentShortcutLabel
+                        onNewKey: { keyCode, shift in
+                            recordKey(for: .renamePrimary, keyCode: keyCode, shift: shift)
                         }
                     )
 
                     LabeledContent {
                         Toggle("", isOn: Binding(
-                            get: { secondaryEnabled },
-                            set: { newValue in
-                                HotkeyManager.shared.setSecondaryEnabled(newValue)
-                                secondaryEnabled = newValue
-                            }
+                            get: { hotkeys.secondaryEnabled },
+                            set: { HotkeyManager.shared.setSecondaryEnabled($0) }
                         ))
                         .labelsHidden()
                         .toggleStyle(.switch)
@@ -138,17 +142,28 @@ struct FileRenamingSettingsPage: View {
                         }
                     }
 
-                    if secondaryEnabled {
+                    if hotkeys.secondaryEnabled {
                         HotkeyRow(
                             title: "Rename (recursive)",
-                            label: secondaryHotkeyLabel,
+                            label: hotkeys.shortcutLabel(for: .renameSecondary),
                             isRecording: $isRecordingSecondary,
-                            onNewShortcut: { keyCode, modifiers in
-                                HotkeyManager.shared.updateSecondary(keyCode: keyCode, modifiers: modifiers)
-                                secondaryHotkeyLabel = HotkeyManager.shared.secondaryShortcutLabel
+                            onNewKey: { keyCode, shift in
+                                recordKey(for: .renameSecondary, keyCode: keyCode, shift: shift)
                             }
                         )
                     }
+
+                    if let message = keyConflictMessage {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Text("Shortcuts are the shared prefix \(hotkeys.prefixLabel) plus the key recorded here (⇧ may be part of the key). Change the prefix in General settings.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
@@ -221,13 +236,13 @@ struct FileRenamingSettingsPage: View {
                         Text("Rename recursively").tag(FolderModePreference.recursive)
                     }
                     .labelsHidden()
-                    .disabled(secondaryEnabled)
+                    .disabled(hotkeys.secondaryEnabled)
                 } label: {
                     HStack(spacing: 6) {
                         Text("When selection contains folders")
                         InfoPopover(
                             title: "Folder handling",
-                            detail: secondaryEnabled
+                            detail: hotkeys.secondaryEnabled
                                 ? "Disabled while the second hotkey is enabled — each hotkey already picks recursive vs. non-recursive."
                                 : "Controls what happens when the Finder selection contains a folder. \"Ask\" prompts each time, \"folder only\" renames just the folder itself, \"recursively\" descends into the folder and renames every file and subfolder inside it. Hidden files (.DS_Store, dotfiles) are always skipped.",
                             exampleBefore: nil,

@@ -4,10 +4,17 @@ import Combine
 
 // MARK: - State
 
-enum NotchFeedbackState: Equatable {
+enum NotchFeedbackState: Equatable, Hashable {
+    struct ChoiceOption: Equatable, Hashable {
+        let id: String
+        let label: String
+    }
+
     case progress(message: String, value: Double?)   // value nil = indeterminate
     case success(message: String)
+    case warning(message: String, detail: String?)
     case error(message: String, detail: String?)
+    case choice(prompt: String, options: [ChoiceOption])
 }
 
 // MARK: - View Model
@@ -18,6 +25,9 @@ final class NotchFeedbackModel: ObservableObject {
     @Published var isDetailExpanded: Bool = false
     /// Drives the content opacity fade; decoupled from the shape grow animation.
     @Published var contentVisible: Bool = false
+    /// Set by the controller before showing a .choice state; called by the
+    /// view when the user taps an option. nil = cancel / dismiss.
+    var onChoiceSelected: ((String?) -> Void)?
 }
 
 // MARK: - Rounded container
@@ -254,6 +264,7 @@ final class NotchFeedbackController {
 
     private static let contentHeight: CGFloat = 42
     private static let expandedContentHeight: CGFloat = 82
+    private static let choiceContentHeight: CGFloat = 90
     // Delay before fading content in, relative to shape animation start (0.38 s).
     // Waiting until the shape is ~75% done avoids visible stretching of text.
     private static let contentFadeDelay: TimeInterval = 0.28
@@ -269,19 +280,19 @@ final class NotchFeedbackController {
         dismissTask?.cancel()
         dismissTask = nil
         model.isDetailExpanded = false
-        model.state = .progress(message: message, value: value)
+        withAnimation(.easeInOut(duration: 0.22)) { model.state = .progress(message: message, value: value) }
         present(contentHeight: Self.contentHeight)
     }
 
     func updateProgress(message: String? = nil, value: Double?) {
         guard case .progress(let current, _) = model.state else { return }
-        model.state = .progress(message: message ?? current, value: value)
+        withAnimation(.easeInOut(duration: 0.15)) { model.state = .progress(message: message ?? current, value: value) }
     }
 
     func showSuccess(_ message: String, autoDismissAfter seconds: TimeInterval = 2.5) {
         dismissTask?.cancel()
         model.isDetailExpanded = false
-        model.state = .success(message: message)
+        withAnimation(.easeInOut(duration: 0.22)) { model.state = .success(message: message) }
         present(contentHeight: Self.contentHeight)
         dismissTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(seconds))
@@ -290,11 +301,57 @@ final class NotchFeedbackController {
         }
     }
 
+    /// Present a choice prompt with labelled buttons inside the notch and return
+    /// the chosen option's `id`, or `nil` if the user cancelled. The caller
+    /// awaits this on the main actor; the continuation is resumed when the user
+    /// taps a button or hits Cancel. Any previously pending choice is cancelled
+    /// before the new one is presented.
+    func askChoice(prompt: String, options: [(id: String, label: String)]) async -> String? {
+        // Cancel any choice already in flight before starting a new one.
+        let prev = model.onChoiceSelected
+        model.onChoiceSelected = nil
+        prev?(nil)
+
+        dismissTask?.cancel()
+        dismissTask = nil
+        sizeObserver = nil
+        model.isDetailExpanded = false
+
+        let mapped = options.map { NotchFeedbackState.ChoiceOption(id: $0.id, label: $0.label) }
+        withAnimation(.easeInOut(duration: 0.22)) { model.state = .choice(prompt: prompt, options: mapped) }
+        present(contentHeight: Self.choiceContentHeight)
+
+        return await withCheckedContinuation { continuation in
+            model.onChoiceSelected = { [weak self] selected in
+                self?.model.onChoiceSelected = nil
+                if selected == nil { self?.dismiss() }
+                continuation.resume(returning: selected)
+            }
+        }
+    }
+
+    func showWarning(_ message: String, detail: String? = nil) {
+        dismissTask?.cancel()
+        dismissTask = nil
+        model.isDetailExpanded = false
+        withAnimation(.easeInOut(duration: 0.22)) { model.state = .warning(message: message, detail: detail) }
+        present(contentHeight: Self.contentHeight)
+
+        sizeObserver = model.$isDetailExpanded
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] expanded in
+                guard let self, let p = self.panel else { return }
+                let ch = expanded ? Self.expandedContentHeight : Self.contentHeight
+                p.animateResize(contentHeight: ch)
+            }
+    }
+
     func showError(_ message: String, detail: String? = nil) {
         dismissTask?.cancel()
         dismissTask = nil
         model.isDetailExpanded = false
-        model.state = .error(message: message, detail: detail)
+        withAnimation(.easeInOut(duration: 0.22)) { model.state = .error(message: message, detail: detail) }
         present(contentHeight: Self.contentHeight)
 
         sizeObserver = model.$isDetailExpanded

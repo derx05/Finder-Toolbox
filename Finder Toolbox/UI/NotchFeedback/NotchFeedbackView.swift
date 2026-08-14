@@ -18,14 +18,21 @@ struct NotchFeedbackView: View {
     var body: some View {
         ZStack(alignment: .top) {
             background
-            content
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .padding(.top, topInset)
-                // Fade in after the shape has grown; controller sets this flag
-                // once the expand animation is near completion.
-                .opacity(model.contentVisible ? 1 : 0)
-                .animation(.easeIn(duration: 0.2), value: model.contentVisible)
+            Group {
+                content
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .padding(.top, topInset)
+            }
+            // Fade in after the shape has grown; controller sets this flag
+            // once the expand animation is near completion.
+            .opacity(model.contentVisible ? 1 : 0)
+            .animation(.easeIn(duration: 0.2), value: model.contentVisible)
+            // Cross-fade between states. The id change causes SwiftUI to
+            // treat each state as a distinct view, triggering the transition.
+            .id(model.state)
+            .transition(.opacity)
+            .animation(.easeInOut(duration: 0.22), value: model.state)
         }
         .onHover { isHovered = $0 }
     }
@@ -54,8 +61,14 @@ struct NotchFeedbackView: View {
             progressContent(message: message, value: value)
         case .success(let message):
             resultContent(icon: "checkmark.circle.fill", iconColor: .green, message: message)
+        case .warning(let message, let detail):
+            expandableContent(icon: "exclamationmark.circle.fill", iconColor: .yellow,
+                              message: message, detail: detail)
         case .error(let message, let detail):
-            errorContent(message: message, detail: detail)
+            expandableContent(icon: "xmark.circle.fill", iconColor: .red,
+                              message: message, detail: detail)
+        case .choice(let prompt, let options):
+            choiceContent(prompt: prompt, options: options)
         }
     }
 
@@ -90,11 +103,11 @@ struct NotchFeedbackView: View {
         }
     }
 
-    private func errorContent(message: String, detail: String?) -> some View {
+    private func expandableContent(icon: String, iconColor: Color, message: String, detail: String?) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.red)
+                Image(systemName: icon)
+                    .foregroundStyle(iconColor)
                     .font(.system(size: 16, weight: .semibold))
 
                 Text(message)
@@ -124,12 +137,39 @@ struct NotchFeedbackView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture {
-            guard case .error(_, let detail) = model.state, detail != nil else { return }
+            guard detail != nil else { return }
             withAnimation(.easeInOut(duration: 0.2)) {
                 model.isDetailExpanded.toggle()
             }
         }
         .animation(.easeInOut(duration: 0.2), value: isHovered)
+    }
+
+    private func choiceContent(prompt: String, options: [NotchFeedbackState.ChoiceOption]) -> some View {
+        VStack(spacing: 6) {
+            Text(prompt)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+
+            HStack(spacing: 8) {
+                ForEach(options, id: \.id) { option in
+                    Button(option.label) {
+                        model.onChoiceSelected?(option.id)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(NotchChoiceButtonStyle())
+                }
+            }
+
+            Button("Cancel") {
+                model.onChoiceSelected?(nil)
+            }
+            .font(.system(size: 11))
+            .foregroundStyle(.red.opacity(0.8))
+            .buttonStyle(.plain)
+        }
     }
 }
 
@@ -165,6 +205,21 @@ private struct IndeterminateSpinner: View {
                     angle = 360
                 }
             }
+    }
+}
+
+private struct NotchChoiceButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.accentColor.opacity(configuration.isPressed ? 0.7 : 1.0))
+            )
     }
 }
 
