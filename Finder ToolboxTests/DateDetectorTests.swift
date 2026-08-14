@@ -86,6 +86,58 @@ final class DateDetectorTests: XCTestCase {
         XCTAssertEqual(month?.date.day, 0)
     }
 
+    func testDetectsBareYearPrefix() {
+        for stem in ["2026 Taxes", "2026_Taxes"] {
+            let result = DateDetector.detect(in: stem)
+            XCTAssertEqual(result?.date.year, 2026, "failed for \(stem)")
+            XCTAssertEqual(result?.date.month, 0, "failed for \(stem)")
+            XCTAssertEqual(result?.date.day, 0, "failed for \(stem)")
+            XCTAssertEqual(result?.remainder, "Taxes", "failed for \(stem)")
+        }
+        // A folder named just by year.
+        XCTAssertEqual(DateDetector.detect(in: "2026")?.remainder, "")
+        // Dashed year prefixes are deliberately NOT treated as bare years.
+        XCTAssertNil(DateDetector.detect(in: "2026-Taxes"))
+        // Out-of-range numbers aren't years.
+        XCTAssertNil(DateDetector.detect(in: "0123 Scan"))
+        XCTAssertNil(DateDetector.detect(in: "2199 Scan"))
+    }
+
+    func testDetectsTwoDigitYearPrefix() {
+        for stem in ["26 Taxes", "26_Taxes"] {
+            let result = DateDetector.detect(in: stem)
+            XCTAssertEqual(result?.date.year, 2026, "failed for \(stem)")
+            XCTAssertEqual(result?.date.month, 0, "failed for \(stem)")
+            XCTAssertEqual(result?.date.day, 0, "failed for \(stem)")
+            XCTAssertEqual(result?.remainder, "Taxes", "failed for \(stem)")
+        }
+        // Documented trade-off of the YY form: list/track numbering parses
+        // as a year. Acceptable per issue discussion; full dates and
+        // 4-digit years always win first.
+        XCTAssertEqual(DateDetector.detect(in: "01 Intro")?.date.year, 2001)
+    }
+
+    func testDetectsYearMonthPrefix() {
+        for stem in ["2026-07 Statements", "2026_07 Statements"] {
+            let result = DateDetector.detect(in: stem)
+            XCTAssertEqual(result?.date.year, 2026, "failed for \(stem)")
+            XCTAssertEqual(result?.date.month, 7, "failed for \(stem)")
+            XCTAssertEqual(result?.date.day, 0, "failed for \(stem)")
+            XCTAssertEqual(result?.remainder, "Statements", "failed for \(stem)")
+        }
+        // Month 13+ isn't a month-precision date; and the bare-year pattern
+        // must not salvage it (dashed years are excluded there).
+        XCTAssertNil(DateDetector.detect(in: "2026-13 Q"))
+    }
+
+    func testFullDatesStillWinOverPlaceholderForms() {
+        // "2024-05-03" must parse as a full date, not year "2024" + remainder.
+        let result = DateDetector.detect(in: "2024-05-03 Invoice")
+        XCTAssertEqual(result?.date.day, 3)
+        // Packed YYMMDD keeps winning over bare-YY ("260000" has no separator).
+        XCTAssertEqual(DateDetector.detect(in: "260514 Foo")?.date.day, 14)
+    }
+
     func testRejectsZeroMonthWithRealDay() {
         // "Unknown month, known day" is meaningless.
         XCTAssertNil(DateDetector.detect(in: "260015 Foo"))
