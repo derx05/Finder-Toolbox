@@ -12,9 +12,9 @@ import AppKit
 struct InsertDateSettingsPage: View {
     @ObservedObject private var permissions = PermissionsManager.shared
 
+    @ObservedObject private var hotkeys = HotkeyManager.shared
     @State private var isRecording = false
-    @State private var hotkeyLabel = HotkeyManager.shared.insertDateShortcutLabel
-    @State private var insertDateEnabled = HotkeyManager.shared.insertDateEnabled
+    @State private var keyConflictMessage: String?
 
     @AppStorage(DefaultsKeys.dateFormatStyle) private var dateFormatStyleRaw = DateFormatStyle.default.rawValue
 
@@ -32,11 +32,8 @@ struct InsertDateSettingsPage: View {
         Form {
             Section("Insert date") {
                 Toggle("Enable insert-date hotkey", isOn: Binding(
-                    get: { insertDateEnabled },
-                    set: { newValue in
-                        HotkeyManager.shared.setInsertDateEnabled(newValue)
-                        insertDateEnabled = newValue
-                    }
+                    get: { hotkeys.insertDateEnabled },
+                    set: { HotkeyManager.shared.setInsertDateEnabled($0) }
                 ))
                 .toggleStyle(.switch)
 
@@ -45,16 +42,32 @@ struct InsertDateSettingsPage: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                if insertDateEnabled {
+                if hotkeys.insertDateEnabled {
                     HotkeyRow(
                         title: "Insert today's date",
-                        label: hotkeyLabel,
+                        label: hotkeys.shortcutLabel(for: .insertDate),
                         isRecording: $isRecording,
-                        onNewShortcut: { keyCode, modifiers in
-                            HotkeyManager.shared.updateInsertDate(keyCode: keyCode, modifiers: modifiers)
-                            hotkeyLabel = HotkeyManager.shared.insertDateShortcutLabel
+                        onNewKey: { keyCode, shift in
+                            if HotkeyManager.shared.updateKey(for: .insertDate, keyCode: Int(keyCode), shift: shift) {
+                                keyConflictMessage = nil
+                            } else {
+                                let key = (shift ? "⇧" : "") + HotkeyManager.keyName(for: Int(keyCode))
+                                keyConflictMessage = "\(key) is already used by another Finder Toolbox shortcut."
+                            }
                         }
                     )
+
+                    if let message = keyConflictMessage {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Text("The shortcut is the shared prefix \(hotkeys.prefixLabel) plus the key recorded here (⇧ may be part of the key). Change the prefix in General settings.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     LabeledContent {
                         Text(preview)
