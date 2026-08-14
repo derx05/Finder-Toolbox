@@ -136,10 +136,35 @@ nonisolated enum DateFormatStyle: String, CaseIterable, Sendable {
         return (yy, mm, dd)
     }
 
+    /// Renders a placeholder date by substituting the pattern's numeric
+    /// fields. Patterns carrying anything beyond `yyyy`/`MM`/`dd` and
+    /// separators — e.g. a `.system` locale with month names (`MMM`) —
+    /// can't express month 0 and fall back to ISO.
+    private static func renderPlaceholder(pattern: String, year: Int, month: Int, day: Int) -> String {
+        let iso = String(format: "%04d-%02d-%02d", year, month, day)
+        guard pattern.allSatisfy({ "yMd-._ ".contains($0) }) else { return iso }
+        return pattern
+            .replacingOccurrences(of: "yyyy", with: String(format: "%04d", year))
+            .replacingOccurrences(of: "MM", with: String(format: "%02d", month))
+            .replacingOccurrences(of: "dd", with: String(format: "%02d", day))
+    }
+
     /// Render `comps` (which must have `.year`, `.month`, `.day`) using this
     /// style. Returns the canonical ISO form on the unlikely chance the
     /// components don't form a valid Gregorian date.
+    ///
+    /// Placeholder dates (month/day 00 = "unknown", e.g. from a `260000`
+    /// whole-year prefix) can't go through `Calendar`/`DateFormatter` —
+    /// month 0 silently rolls over into December of the previous year.
+    /// They're rendered by substituting the pattern's numeric fields
+    /// directly instead.
     func format(_ comps: DateComponents) -> String {
+        if comps.month == 0 || comps.day == 0 {
+            return Self.renderPlaceholder(
+                pattern: pattern,
+                year: comps.year ?? 0, month: comps.month ?? 0, day: comps.day ?? 0
+            )
+        }
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(secondsFromGMT: 0)!
         guard let date = cal.date(from: comps) else {

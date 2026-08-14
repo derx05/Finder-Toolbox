@@ -57,8 +57,15 @@ enum DateDetector {
     // MARK: - Helpers
 
     nonisolated private static func isValidDate(_ comps: DateComponents) -> Bool {
-        guard let y = comps.year, let m = comps.month, let d = comps.day,
-              m >= 1, m <= 12, d >= 1, d <= 31 else { return false }
+        guard let y = comps.year, let m = comps.month, let d = comps.day else { return false }
+        // Placeholder dates: "00" zeroes out precision the user doesn't have
+        // (260000 = sometime in 2026, 250100 = sometime in Jan 2025). Day 00
+        // needs a real (or zero) month; month 00 with a non-zero day is
+        // meaningless and stays rejected. These never reach Calendar — month
+        // 0 would silently roll over into the previous year.
+        if m == 0 { return d == 0 }
+        if d == 0 { return m >= 1 && m <= 12 }
+        guard m >= 1, m <= 12, d >= 1, d <= 31 else { return false }
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(secondsFromGMT: 0)!
         guard let date = cal.date(from: comps) else { return false }

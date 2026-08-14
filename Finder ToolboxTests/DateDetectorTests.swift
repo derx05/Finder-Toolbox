@@ -57,6 +57,40 @@ final class DateDetectorTests: XCTestCase {
         XCTAssertNil(DateDetector.detect(in: "2024-00-15 Invoice"))   // month 0
     }
 
+    func testDetectsWholeYearPlaceholder() {
+        // "00" zeroes out precision the user doesn't have: 260000 = sometime in 2026.
+        let result = DateDetector.detect(in: "260000 Taxes")
+        XCTAssertEqual(result?.date.year, 2026)
+        XCTAssertEqual(result?.date.month, 0)
+        XCTAssertEqual(result?.date.day, 0)
+        XCTAssertEqual(result?.remainder, "Taxes")
+    }
+
+    func testDetectsWholeMonthPlaceholder() {
+        let result = DateDetector.detect(in: "250100 Statements")
+        XCTAssertEqual(result?.date.year, 2025)
+        XCTAssertEqual(result?.date.month, 1)
+        XCTAssertEqual(result?.date.day, 0)
+        XCTAssertEqual(result?.remainder, "Statements")
+    }
+
+    func testDetectsIsoPlaceholders() {
+        let year = DateDetector.detect(in: "2026-00-00 Taxes")
+        XCTAssertEqual(year?.date.year, 2026)
+        XCTAssertEqual(year?.date.month, 0)
+        XCTAssertEqual(year?.date.day, 0)
+
+        let month = DateDetector.detect(in: "2025-01-00 Statements")
+        XCTAssertEqual(month?.date.year, 2025)
+        XCTAssertEqual(month?.date.month, 1)
+        XCTAssertEqual(month?.date.day, 0)
+    }
+
+    func testRejectsZeroMonthWithRealDay() {
+        // "Unknown month, known day" is meaningless.
+        XCTAssertNil(DateDetector.detect(in: "260015 Foo"))
+    }
+
     func testRemainderStripsSeparators() {
         XCTAssertEqual(DateDetector.detect(in: "2024-05-03_Invoice")?.remainder, "Invoice")
         XCTAssertEqual(DateDetector.detect(in: "2024-05-03-Invoice")?.remainder, "Invoice")
