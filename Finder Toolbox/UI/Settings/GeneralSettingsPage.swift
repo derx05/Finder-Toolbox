@@ -19,22 +19,21 @@ struct GeneralSettingsPage: View {
                     PrefixModifierPicker(hotkeys: hotkeys)
                 }
 
-                Text("Every Finder Toolbox shortcut is this prefix plus a key. The keys are set on each feature's page; ⇧ can be part of a key.")
+                Text("Every Finder Toolbox shortcut is this prefix plus a key. The keys are set on each feature's page; ⇧ can be part of a key. macOS supports only these modifier keys for global shortcuts.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                ForEach(HotkeyFeature.allCases, id: \.self) { feature in
-                    LabeledContent(feature.displayName) {
-                        HStack(spacing: 8) {
-                            if !hotkeys.isActive(feature) {
-                                Text("Off")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
+                if activeFeatures.isEmpty {
+                    Text("No shortcuts are currently enabled. Enable them on the File Renaming and Insert Date pages.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    ForEach(activeFeatures, id: \.self) { feature in
+                        LabeledContent(feature.displayName) {
                             Text(hotkeys.shortcutLabel(for: feature))
                                 .font(.system(.body, design: .monospaced))
-                                .foregroundStyle(hotkeys.isActive(feature) ? .primary : .secondary)
                         }
                     }
                 }
@@ -93,6 +92,13 @@ struct GeneralSettingsPage: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    /// Only features whose shortcut is actually registered appear in the
+    /// overview — disabled ones would just be noise; their keys are still
+    /// configurable (and duplicate-checked) on their feature pages.
+    private var activeFeatures: [HotkeyFeature] {
+        HotkeyFeature.allCases.filter { hotkeys.isActive($0) }
     }
 
     private var duplicateNames: String {
