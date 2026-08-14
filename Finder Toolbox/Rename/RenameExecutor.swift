@@ -667,9 +667,11 @@ actor RenameExecutor {
         let ext = (target as NSString).pathExtension
         let base = (target as NSString).deletingPathExtension
 
+        // Route through `fitting` so appending the counter can't push an
+        // already-clamped name back over the filesystem length limit.
         var counter = 2
         while true {
-            let candidate = ext.isEmpty ? "\(base) \(counter)" : "\(base) \(counter).\(ext)"
+            let candidate = FilenameBuilder.fitting(stem: base, suffix: " \(counter)", ext: ext)
             if !exists(candidate) { return candidate }
             counter += 1
         }
