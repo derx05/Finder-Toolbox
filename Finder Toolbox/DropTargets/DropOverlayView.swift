@@ -585,16 +585,31 @@ final class DropOverlayView: NSView {
             // safely readable here, not from the background queue
             // that runs the AppleEvent round-trip.
             let dragged = MailBridge.draggedMessages(from: pb)
+
             // Cross-check Mail's per-message records against the number of
-            // dragging items the pasteboard actually carries. When these
-            // disagree, Mail under-reported the drag and the shortfall is
-            // upstream of us — distinct from a record we parsed and then
-            // dropped, which `mail-bridge` reports separately.
+            // dragging items the pasteboard actually carries.
+            //
+            // For a multi-selection drag Mail creates one dragging item per
+            // message but describes only the message under the cursor in
+            // PasteboardTypeAutomator — so dragging two mails yields a
+            // single record, and the second silently never gets exported.
+            // When the pasteboard carries more items than Mail described,
+            // discard the records and export Mail's current `selection`
+            // instead, which for a multi-select is exactly what the user
+            // dragged. `saveMessages` treats an empty array as that cue.
+            //
+            // Deliberately one-directional. A collapsed conversation stack
+            // is a single dragging item that legitimately describes several
+            // messages (records ≥ items), and a lone bubble dragged out of
+            // an expanded thread is one item with one record — neither may
+            // fall back, because `selection` reports the whole thread and
+            // would export messages the user didn't drag.
             let itemCount = pb.pasteboardItems?.count ?? -1
+            let useSelection = itemCount > dragged.count
             DebugLog.log("drop-overlay",
-                         "Mail drag[\(folderName)] — pasteboard items=\(itemCount) automator records=\(dragged.count)",
-                         level: itemCount == dragged.count ? .info : .warning)
-            return performMailDrop(dragged: dragged)
+                         "Mail drag[\(folderName)] — pasteboard items=\(itemCount) automator records=\(dragged.count) source=\(useSelection ? "selection" : "records")",
+                         level: useSelection ? .warning : .info)
+            return performMailDrop(dragged: useSelection ? [] : dragged)
         }
 
         // Check for promises FIRST. Apps like Photos put both

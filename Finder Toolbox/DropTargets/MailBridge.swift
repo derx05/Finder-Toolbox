@@ -276,6 +276,9 @@ enum MailBridge {
                 urls.append(url)
             }
         }
+        DebugLog.log("mail-bridge",
+                     "exported \(urls.count) message(s) from Mail's selection",
+                     level: urls.isEmpty ? .error : .info)
         return urls
     }
 
