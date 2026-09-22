@@ -52,20 +52,46 @@ enum MailBridge {
         guard let data = pb.data(forType: automatorType),
               let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil),
               let arr = plist as? [[String: Any]]
-        else { return [] }
+        else {
+            DebugLog.log("mail-bridge",
+                         "PasteboardTypeAutomator missing or unreadable — falling back to Mail's selection",
+                         level: .warning)
+            return []
+        }
 
         var out: [DraggedMessage] = []
         for dict in arr {
-            guard let account = dict["account"] as? String,
-                  let mailbox = dict["mailbox"] as? String,
-                  let subject = dict["subject"] as? String
-            else { continue }
+            // Only `account` and `id` are load-bearing. `saveExplicit`
+            // deliberately ignores the mailbox label (see its comment) and
+            // the subject is cosmetic — it only names the exported file.
+            // Requiring all four used to discard a whole message whenever
+            // Mail omitted one of them, so a subject-less mail silently
+            // vanished from a multi-message drag.
+            guard let account = dict["account"] as? String else {
+                DebugLog.log("mail-bridge",
+                             "dropping dragged record with no account: keys=\(dict.keys.sorted())",
+                             level: .warning)
+                continue
+            }
             let id: Int
             if let n = dict["id"] as? Int { id = n }
             else if let n = (dict["id"] as? NSNumber)?.intValue { id = n }
-            else { continue }
-            out.append(DraggedMessage(account: account, mailbox: mailbox, id: id, subject: subject))
+            else {
+                DebugLog.log("mail-bridge",
+                             "dropping dragged record with no id: keys=\(dict.keys.sorted())",
+                             level: .warning)
+                continue
+            }
+            out.append(DraggedMessage(
+                account: account,
+                mailbox: dict["mailbox"] as? String ?? "",
+                id: id,
+                subject: dict["subject"] as? String ?? "Mail message"
+            ))
         }
+        DebugLog.log("mail-bridge",
+                     "dragged \(arr.count) record(s), \(out.count) usable",
+                     level: out.count == arr.count ? .info : .warning)
         return out
     }
 
@@ -99,7 +125,8 @@ enum MailBridge {
             let block = """
                 try
                     set msg to my findMessageInAccount("\(escapedAccount)", \(m.id))
-                    if msg is missing value then error "message id \(m.id) not found in any mailbox of account \(escapedAccount)"
+                    if msg is missing value then set msg to my findMessageAnywhere(\(m.id))
+                    if msg is missing value then error "message id \(m.id) not found in any mailbox of account \(escapedAccount) or on this Mac"
                     set theSource to source of msg
                     set uuidStr to (do shell script "/usr/bin/uuidgen")
                     set theFile to destDir & "/" & uuidStr & ".eml"
@@ -111,7 +138,14 @@ enum MailBridge {
                     close access fileRef
                     set output to output & uuidStr & tab & "\(m.id)" & linefeed
                 on error errMsg
-                    set output to output & "ERR\\t\(m.id)\\t" & errMsg & linefeed
+                    -- AppleScript string literals don't process \\t, so the
+                    -- separator has to be the `tab` constant. Building this
+                    -- line with a literal backslash-t made every failure
+                    -- unparseable on the Swift side, and the parser dropped
+                    -- it as a malformed line — so a message that Mail
+                    -- couldn't find disappeared from the batch with no
+                    -- error reported anywhere.
+                    set output to output & "ERR" & tab & "\(m.id)" & tab & errMsg & linefeed
                 end try
             """
             perMessageBlocks.append(block)
@@ -137,6 +171,22 @@ enum MailBridge {
             return missing value
         end findMessageInAccount
 
+        -- `every mailbox of account` misses local ("On My Mac") mailboxes,
+        -- which belong to no account. Used as a fallback so a mixed
+        -- selection spanning a server account and a local mailbox doesn't
+        -- lose the local messages.
+        on findMessageAnywhere(targetID)
+            tell application "Mail"
+                try
+                    repeat with mbx in (every mailbox)
+                        set found to my findMessageInMailbox(mbx, targetID)
+                        if found is not missing value then return found
+                    end repeat
+                end try
+            end tell
+            return missing value
+        end findMessageAnywhere
+
         on findMessageInMailbox(mbx, targetID)
             tell application "Mail"
                 try
@@ -158,14 +208,26 @@ enum MailBridge {
         // Map UUID → subject from the Swift-side records so we don't
         // have to round-trip the (possibly quote-laden) subject through
         // AppleScript output.
-        let subjectByID: [Int: String] = Dictionary(uniqueKeysWithValues: dragged.map { ($0.id, $0.subject) })
+        // `uniqueKeysWithValues` traps on duplicates, and Mail ids are only
+        // unique per message store — a drag spanning two accounts can
+        // legitimately carry the same numeric id twice.
+        let subjectByID = Dictionary(dragged.map { ($0.id, $0.subject) },
+                                     uniquingKeysWith: { first, _ in first })
 
         var urls: [URL] = []
         for rawLine in raw.split(separator: "\n", omittingEmptySubsequences: true) {
             let parts = rawLine.split(separator: "\t", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
-            guard parts.count == 2 else { continue }
+            guard parts.count == 2 else {
+                DebugLog.log("mail-bridge",
+                             "unparseable line from Mail: \(String(rawLine))",
+                             level: .error)
+                continue
+            }
             if parts[0] == "ERR" {
                 log.error("MailBridge: per-message error: \(String(rawLine), privacy: .public)")
+                DebugLog.log("mail-bridge",
+                             "Mail could not export a message: \(parts[1])",
+                             level: .error)
                 continue
             }
             let uuidStr = parts[0]
@@ -175,6 +237,9 @@ enum MailBridge {
                 urls.append(url)
             }
         }
+        DebugLog.log("mail-bridge",
+                     "exported \(urls.count)/\(dragged.count) dragged message(s)",
+                     level: urls.count == dragged.count ? .info : .error)
         return urls
     }
 
@@ -223,6 +288,7 @@ enum MailBridge {
         if let errorInfo {
             let msg = (errorInfo[NSAppleScript.errorMessage] as? String) ?? String(describing: errorInfo)
             log.error("MailBridge: AppleScript error: \(msg, privacy: .public)")
+            DebugLog.log("mail-bridge", "AppleScript error: \(msg)", level: .error)
             throw NSError(domain: "MailBridge", code: 2, userInfo: [NSLocalizedDescriptionKey: msg])
         }
         return result.stringValue ?? ""
@@ -234,6 +300,9 @@ enum MailBridge {
         let source = dir.appendingPathComponent("\(uuid).eml")
         guard FileManager.default.fileExists(atPath: source.path) else {
             log.error("MailBridge: Mail reported \(uuid, privacy: .public) but file is missing")
+            DebugLog.log("mail-bridge",
+                         "Mail reported writing \(uuid).eml but the file is missing",
+                         level: .error)
             return nil
         }
         let safe = sanitize(subject)
