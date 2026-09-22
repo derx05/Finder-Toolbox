@@ -32,7 +32,7 @@ enum FolderModeDialog {
         let cancel = alert.addButton(withTitle: "Cancel")
         cancel.keyEquivalent = "\u{1b}"  // Escape cancels.
 
-        switch alert.runModal() {
+        switch runModalActivated(alert) {
         case .alertFirstButtonReturn:  return .flat
         case .alertSecondButtonReturn: return .recursive
         default:                       return .cancel
@@ -69,7 +69,7 @@ enum FolderModeDialog {
         let cancel = alert.addButton(withTitle: "Cancel")
         cancel.keyEquivalent = "\u{1b}"
 
-        switch alert.runModal() {
+        switch runModalActivated(alert) {
         case .alertFirstButtonReturn:  return .filesOnly
         case .alertSecondButtonReturn: return .filesAndFolders
         default:                       return .cancel
@@ -98,6 +98,6 @@ enum FolderModeDialog {
         proceed.hasDestructiveAction = true
         let cancel = alert.addButton(withTitle: "Cancel")
         cancel.keyEquivalent = "\u{1b}"
-        return alert.runModal() == .alertFirstButtonReturn
+        return runModalActivated(alert) == .alertFirstButtonReturn
     }
 }
