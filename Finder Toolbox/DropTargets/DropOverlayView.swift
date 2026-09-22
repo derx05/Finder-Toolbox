@@ -100,6 +100,12 @@ final class DropOverlayView: NSView {
     /// `draggingEntered` / `draggingUpdated`.
     private var currentOperation: DropOperation = .move
 
+    /// Last mask reported back to AppKit from `draggingUpdated`. That
+    /// callback fires at ~60 Hz, so the debug log only records transitions
+    /// — enough to see *whether* the panel ever advertised an acceptable
+    /// operation, without flooding the 500-entry ring buffer.
+    private var lastLoggedAccepted: NSDragOperation?
+
     /// SF Symbol shown while the Apple Events query for the target folder
     /// is still in flight. Paired with `loadingTintColor` to read as a
     /// neutral "not yet ready" state — distinct from the move/copy
@@ -480,7 +486,13 @@ final class DropOverlayView: NSView {
     // MARK: - NSDraggingDestination
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard !isProcessing else { return [] }
+        lastLoggedAccepted = nil
+        guard !isProcessing else {
+            DebugLog.log("drop-overlay",
+                         "draggingEntered[\(folderName)] refused — panel already processing a drop",
+                         level: .warning)
+            return []
+        }
         // Refuse drops until we know the destination — we can't pick the
         // right operation (move vs. copy) without the target volume, so
         // commit-only-when-resolved is safer than guessing. The cursor
@@ -489,6 +501,9 @@ final class DropOverlayView: NSView {
         // accepting.
         guard targetFolder != nil else {
             log.debug("draggingEntered[\(self.folderName, privacy: .public)] refused — target folder not yet resolved")
+            DebugLog.log("drop-overlay",
+                         "draggingEntered[\(folderName)] refused — target folder not yet resolved",
+                         level: .warning)
             return []
         }
         let sourceMask = sender.draggingSourceOperationMask
@@ -497,10 +512,14 @@ final class DropOverlayView: NSView {
         let types = sender.draggingPasteboard.types?.map(\.rawValue).joined(separator: ", ") ?? "<none>"
         let (op, accepted) = desiredOperation(sender)
         log.debug("draggingEntered[\(self.folderName, privacy: .public)] mouseAt=\(NSStringFromPoint(mouseInScreen), privacy: .public) panelFrame=\(NSStringFromRect(panelFrame), privacy: .public) sourceMask=\(sourceMask.rawValue, privacy: .public) op=\(String(describing: op), privacy: .public) types=[\(types, privacy: .public)]")
+        DebugLog.log("drop-overlay",
+                     "draggingEntered[\(folderName)] mouseAt=\(NSStringFromPoint(mouseInScreen)) panelFrame=\(NSStringFromRect(panelFrame)) sourceMask=\(sourceMask.rawValue) op=\(op) accepted=\(accepted.rawValue) types=[\(types)]",
+                     level: accepted.isEmpty ? .warning : .info)
         if accepted.isEmpty {
             log.debug("dropOverlay[\(self.folderName, privacy: .public)]: source declined both copy and move (mask=\(sourceMask.rawValue, privacy: .public)) — refusing drag")
             return []
         }
+        lastLoggedAccepted = accepted
         // Defer the visual side effects: the first hover into a fresh
         // panel kicks off CALayer animations (conveyor + pulse) and an
         // icon/tint swap, and running those synchronously before
@@ -523,11 +542,20 @@ final class DropOverlayView: NSView {
                 self?.applyOperation(op)
             }
         }
+        // ~60 Hz callback — record transitions only.
+        if accepted != lastLoggedAccepted {
+            lastLoggedAccepted = accepted
+            DebugLog.log("drop-overlay",
+                         "draggingUpdated[\(folderName)] sourceMask=\(sender.draggingSourceOperationMask.rawValue) op=\(op) accepted=\(accepted.rawValue)",
+                         level: accepted.isEmpty ? .warning : .info)
+        }
         return accepted
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
         log.debug("draggingExited[\(self.folderName, privacy: .public)]")
+        DebugLog.log("drop-overlay", "draggingExited[\(folderName)]")
+        lastLoggedAccepted = nil
         DispatchQueue.main.async { [weak self] in
             self?.setHighlighted(false)
         }
@@ -535,10 +563,12 @@ final class DropOverlayView: NSView {
 
     override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
         log.debug("prepareForDragOperation[\(self.folderName, privacy: .public)]")
+        DebugLog.log("drop-overlay", "prepareForDragOperation[\(folderName)] — accepting")
         return true
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        DebugLog.log("drop-overlay", "performDragOperation[\(folderName)] — entered")
         setHighlighted(false)
 
         let (operation, _) = desiredOperation(sender)
@@ -555,7 +585,31 @@ final class DropOverlayView: NSView {
             // safely readable here, not from the background queue
             // that runs the AppleEvent round-trip.
             let dragged = MailBridge.draggedMessages(from: pb)
-            return performMailDrop(dragged: dragged)
+
+            // Cross-check Mail's per-message records against the number of
+            // dragging items the pasteboard actually carries.
+            //
+            // For a multi-selection drag Mail creates one dragging item per
+            // message but describes only the message under the cursor in
+            // PasteboardTypeAutomator — so dragging two mails yields a
+            // single record, and the second silently never gets exported.
+            // When the pasteboard carries more items than Mail described,
+            // discard the records and export Mail's current `selection`
+            // instead, which for a multi-select is exactly what the user
+            // dragged. `saveMessages` treats an empty array as that cue.
+            //
+            // Deliberately one-directional. A collapsed conversation stack
+            // is a single dragging item that legitimately describes several
+            // messages (records ≥ items), and a lone bubble dragged out of
+            // an expanded thread is one item with one record — neither may
+            // fall back, because `selection` reports the whole thread and
+            // would export messages the user didn't drag.
+            let itemCount = pb.pasteboardItems?.count ?? -1
+            let useSelection = itemCount > dragged.count
+            DebugLog.log("drop-overlay",
+                         "Mail drag[\(folderName)] — pasteboard items=\(itemCount) automator records=\(dragged.count) source=\(useSelection ? "selection" : "records")",
+                         level: useSelection ? .warning : .info)
+            return performMailDrop(dragged: useSelection ? [] : dragged)
         }
 
         // Check for promises FIRST. Apps like Photos put both
@@ -666,7 +720,14 @@ final class DropOverlayView: NSView {
         let onDrop = self.onDrop
         let onProcessingFailed = self.onProcessingFailed
 
-        DispatchQueue.global(qos: .userInitiated).async {
+        // Default QoS, deliberately — not .userInitiated. NSAppleScript
+        // blocks this thread on the AppleScript/Apple Event machinery
+        // (plus the `do shell script` child process), all of which run
+        // at Default QoS. Waiting on them from a user-initiated thread
+        // trips the runtime's priority-inversion diagnostic. The drag
+        // finalize has already returned, so nothing is gated on this
+        // running at an elevated class.
+        DispatchQueue.global(qos: .default).async {
             do {
                 let urls = try MailBridge.saveMessages(dragged, to: dir)
                 DispatchQueue.main.async {
