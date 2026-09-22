@@ -30,6 +30,30 @@
         -->
 
         <item>
+            <title>Finder Toolbox 0.2.4-beta.1</title>
+            <sparkle:version>2026.09.22.01</sparkle:version>
+            <sparkle:shortVersionString>0.2.4-beta.1</sparkle:shortVersionString>
+            <sparkle:channel>beta</sparkle:channel>
+            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <p>macOS 27 compatibility release.</p>
+                <ul>
+                    <li>macOS 27: drops onto a drop target were silently rejected — the overlay was torn down before macOS had finished delivering the drop. Overlays now dissolve at drag-end and stay live until the drop lands.</li>
+                    <li>macOS 27: dragging several Mail messages onto a drop target exported only the one under the cursor. All dragged messages are exported again.</li>
+                    <li>macOS 27: rename dialogs (folder mode, PDF conflict, summary) could open behind the frontmost app, leaving Finder Toolbox in a modal loop with no visible window — indistinguishable from a freeze. Dialogs now come forward on the active Space.</li>
+                    <li>Mail export finds messages in local "On My Mac" mailboxes, and a message it cannot export is now reported instead of silently skipped.</li>
+                    <li>Renamer: an impossible date in a filename ("2024-02-30", "2024-00-15") no longer degrades to a coarser date with a stray day number left in the name — today's date is prefixed instead.</li>
+                    <li>Debug log records the full drag/drop and Mail export path, so a rejected drop can be diagnosed from the log alone.</li>
+                </ul>
+            ]]></description>
+            <pubDate>Tue, 22 Sep 2026 12:00:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/derx05/Finder-Toolbox/releases/download/v0.2.4-beta.1/FinderToolbox-0.2.4-beta.1-2026.09.22.01.zip"
+                sparkle:edSignature="co04U2AmPtBshnx84qSHuMk8ytr0dznXfn8L3IBvrpsQxsD0oh7dXfmpXdO9l6SXnlIQ/oKFXiqFZ1cKmD0nDg==" length="4093582"
+                type="application/octet-stream" />
+        </item>
+
+        <item>
             <title>Finder Toolbox 0.2.3-beta.1</title>
             <sparkle:version>2026.08.14.01</sparkle:version>
             <sparkle:shortVersionString>0.2.3-beta.1</sparkle:shortVersionString>
