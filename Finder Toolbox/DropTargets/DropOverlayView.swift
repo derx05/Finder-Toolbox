@@ -720,7 +720,14 @@ final class DropOverlayView: NSView {
         let onDrop = self.onDrop
         let onProcessingFailed = self.onProcessingFailed
 
-        DispatchQueue.global(qos: .userInitiated).async {
+        // Default QoS, deliberately — not .userInitiated. NSAppleScript
+        // blocks this thread on the AppleScript/Apple Event machinery
+        // (plus the `do shell script` child process), all of which run
+        // at Default QoS. Waiting on them from a user-initiated thread
+        // trips the runtime's priority-inversion diagnostic. The drag
+        // finalize has already returned, so nothing is gated on this
+        // running at an elevated class.
+        DispatchQueue.global(qos: .default).async {
             do {
                 let urls = try MailBridge.saveMessages(dragged, to: dir)
                 DispatchQueue.main.async {

@@ -102,6 +102,12 @@ enum MailBridge {
     ///
     /// **MUST be called off the main thread** — `NSAppleScript` blocks
     /// for the duration of the AppleEvent round-trip with Mail.
+    ///
+    /// Call it from a thread at **Default QoS or lower**. The blocking
+    /// wait is on the AppleScript/Apple Event machinery, which services
+    /// the request at Default QoS; waiting on that from a user-initiated
+    /// (or higher) thread is a priority inversion and the runtime will
+    /// flag it inside `executeAndReturnError`.
     static func saveMessages(_ dragged: [DraggedMessage], to dir: URL) throws -> [URL] {
         if dragged.isEmpty {
             return try saveSelection(to: dir)
