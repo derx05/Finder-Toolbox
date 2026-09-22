@@ -35,7 +35,7 @@ enum SummaryDialog {
             alert.accessoryView = makeScrollableTextView(content: lines.joined(separator: "\n"))
         }
 
-        alert.runModal()
+        _ = runModalActivated(alert)
     }
 
     /// Shown when a drop-targets move was denied by TCC on the destination
@@ -74,7 +74,7 @@ enum SummaryDialog {
         alert.addButton(withTitle: "Open System Settings")
         alert.addButton(withTitle: "Cancel")
 
-        if alert.runModal() == .alertFirstButtonReturn {
+        if runModalActivated(alert) == .alertFirstButtonReturn {
             PermissionsManager.shared.openSystemSettings()
         }
     }

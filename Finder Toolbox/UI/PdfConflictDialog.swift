@@ -62,7 +62,7 @@ enum PdfConflictDialog {
         alert.accessoryView = checkbox
 
         let applyToRemaining = checkbox?.state == .on
-        switch alert.runModal() {
+        switch runModalActivated(alert) {
         case .alertFirstButtonReturn:
             return Response(disposition: .heuristic, applyToRemaining: checkbox?.state == .on)
         case .alertSecondButtonReturn:
@@ -104,7 +104,7 @@ enum PdfConflictDialog {
         let checkbox = makeApplyToRemainingCheckbox(total: total)
         alert.accessoryView = checkbox
 
-        let response = alert.runModal()
+        let response = runModalActivated(alert)
         let apply = checkbox?.state == .on
 
         if decision.metadata != nil {

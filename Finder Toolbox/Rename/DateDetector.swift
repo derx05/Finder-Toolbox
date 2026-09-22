@@ -183,8 +183,14 @@ enum DateDetector {
             // above, not these.
             //
             // YYYY-MM / YYYY_MM → month-precision placeholder. `(?!\d)` keeps
-            // it from eating the first two digits of a longer number.
-            PatternEntry(regex: raw(#"^(\d{4})[-_](\d{2})(?!\d)[ _-]?"#)) { g in
+            // it from eating the first two digits of a longer number, and
+            // `(?![-_.]\d)` keeps it from eating the year+month of a full
+            // date that the patterns above already rejected as impossible:
+            // without it "2024-02-30" degrades to Feb 2024 with a stray "30"
+            // left in the name, and "2024-00-15" to just 2024 with a stray
+            // "15". An impossible date must fall through to "no date here"
+            // so the caller prefixes today instead.
+            PatternEntry(regex: raw(#"^(\d{4})[-_](\d{2})(?!\d)(?![-_.]\d)[ _-]?"#)) { g in
                 guard let y = Int(g[0]), let m = Int(g[1]), y >= 1900, y <= 2099 else { return nil }
                 return (y, m, 0)
             },

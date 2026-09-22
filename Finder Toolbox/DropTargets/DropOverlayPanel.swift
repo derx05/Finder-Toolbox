@@ -125,19 +125,51 @@ final class DropOverlayPanel: NSPanel {
         return NSRect(x: x, y: y, width: size.width, height: size.height)
     }
 
+    /// Bumped on every fade start and on `cancelFadeOut`, so a superseded
+    /// animation's completion handler can't order out a panel that has
+    /// since been claimed for something else.
+    private var fadeGeneration = 0
+
     /// Fade the panel out, then order it off-screen. Used to retire a
     /// processing overlay after its post-drop confirmation (issue #40) so
-    /// it doesn't just blink away. Resets `alphaValue` so a recycled panel
-    /// object isn't left invisible (panels are recreated per drag, but
-    /// this keeps the method self-contained).
-    func fadeOutAndClose() {
+    /// it doesn't just blink away, and to dissolve the drag's overlays at
+    /// drag-end instead of blinking them away. Resets `alphaValue` so a
+    /// recycled panel object isn't left invisible (panels are recreated
+    /// per drag, but this keeps the method self-contained).
+    ///
+    /// The panel remains a live drop target for the duration: AppKit
+    /// finalizes a drop after the mouse-up that triggers the drag-end
+    /// teardown, and a fading window can still receive it (only a fully
+    /// transparent window drops out of event hit-testing). That's the
+    /// point of dissolving rather than ordering out immediately — see
+    /// `DropTargetsCoordinator.teardownFade`.
+    func fadeOutAndClose(duration: TimeInterval = 0.25) {
+        fadeGeneration += 1
+        let generation = fadeGeneration
         NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.25
+            ctx.duration = duration
             animator().alphaValue = 0
         }, completionHandler: { [weak self] in
-            self?.orderOut(nil)
-            self?.alphaValue = 1
+            // NSAnimationContext completion handlers are `@Sendable` but
+            // always run on the main thread, so reading the isolated
+            // `fadeGeneration` here is sound.
+            MainActor.assumeIsolated {
+                guard let self, self.fadeGeneration == generation else { return }
+                self.orderOut(nil)
+                self.alphaValue = 1
+            }
         })
+    }
+
+    /// Abort an in-flight `fadeOutAndClose` and snap back to full opacity.
+    /// Called when a drop lands on a panel that was already dissolving —
+    /// it has to stay up to show the transfer's progress.
+    func cancelFadeOut() {
+        fadeGeneration += 1
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0
+            animator().alphaValue = 1
+        }
     }
 
     // Borderless panels default to canBecomeKey=false, which blocks the

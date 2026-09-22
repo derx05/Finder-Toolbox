@@ -89,6 +89,28 @@ final class DropTargetsCoordinator {
     private var hoverMonitorGlobal: Any?
     private var hoverMonitorLocal: Any?
 
+    /// Dissolve time for the drag's overlays at drag-end, and with it the
+    /// grace period before they stop being drop targets.
+    ///
+    /// AppKit finalizes a drop — `prepareForDragOperation` then
+    /// `performDragOperation` — *after* the `.leftMouseUp` that our global
+    /// event monitor sees. Those two deliveries race, and ordering the
+    /// panel out while the drop is still in flight makes AppKit abandon
+    /// it: the drag animates back to the source and `performDragOperation`
+    /// never fires. The same failure mode is why `collectionBehavior` uses
+    /// `.stationary` rather than `.transient` (see `DropOverlayPanel`).
+    ///
+    /// On macOS 15 mouse-up almost always arrived last, so tearing down
+    /// synchronously was safe. macOS 26/27 widened the gap and the
+    /// teardown now usually wins — drops get silently rejected. Fading
+    /// out over this interval closes the race and reads as a deliberate
+    /// dismissal rather than a stall: the panel stays live while its alpha
+    /// animates, and the drop arrives in the first few milliseconds when
+    /// it's still near-opaque. Panels that did accept a drop are pulled
+    /// out of `panels` by `beginProcessing`, which also cancels the fade.
+    private static let teardownFade: TimeInterval = 0.3
+    private var pendingTeardown: DispatchWorkItem?
+
     /// Long-lived map of Finder window IDs to (folder, title). Refreshed
     /// at startup, at drag-end, at drag-start (re-attempted; only lands
     /// for non-Finder drag sources — Finder won't answer AE while it's
@@ -260,11 +282,22 @@ final class DropTargetsCoordinator {
     }
 
     private func handleDragEnded() {
-        DebugLog.log("drop-targets", "drag ended")
+        // Record where the cursor was relative to each overlay. When a drop
+        // is rejected with no `draggingEntered` in the log at all, this is
+        // what separates "the panel wasn't under the cursor" (geometry bug)
+        // from "AppKit never offered us the drag" (window/level bug).
+        let cursor = NSEvent.mouseLocation
+        DebugLog.log("drop-targets",
+                     "drag ended — cursorAt=\(NSStringFromPoint(cursor)) panels=\(panels.count)")
+        for panel in panels {
+            DebugLog.log("drop-targets",
+                         "  panel: id=\(panel.target.windowID) frame=\(NSStringFromRect(panel.frame)) visible=\(panel.isVisible) cursorInside=\(panel.frame.contains(cursor))")
+        }
         dragActive = false
         stopModifierMonitor()
         stopHoverMonitor()
-        hidePanels()
+        // Deferred, not immediate — see `teardownGrace`.
+        scheduleTeardown()
         dragSourceURLs = []
         dragPromiseOnly = false
         // Single AE refresh per drag boundary. Catches any navigation
@@ -568,6 +601,10 @@ final class DropTargetsCoordinator {
             existing.orderOut(nil)
         }
         processingPanels[id] = panel
+        // The drop may have landed while drag-end was already dissolving
+        // this panel — snap it back to full opacity before it starts
+        // reporting progress.
+        panel.cancelFadeOut()
         panel.orderFrontRegardless()
         (panel.contentView as? DropOverlayView)?.showProcessing()
         DebugLog.log("drop-targets", "processing started on window \(id)")
@@ -594,7 +631,27 @@ final class DropTargetsCoordinator {
         panel.fadeOutAndClose()
     }
 
+    /// Dissolve the drag's overlays and drop their references once the
+    /// fade has finished, giving AppKit time to finalize a drop that
+    /// landed on one of them. The fade itself orders each panel out; the
+    /// work item only clears `panels`. A new drag starting inside the
+    /// window cancels the pending work item via `hidePanels`, which
+    /// `handleDragStarted` calls first thing.
+    private func scheduleTeardown() {
+        pendingTeardown?.cancel()
+        for panel in panels { panel.fadeOutAndClose(duration: Self.teardownFade) }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.pendingTeardown = nil
+            self.hidePanels()
+        }
+        pendingTeardown = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.teardownFade + 0.05, execute: work)
+    }
+
     private func hidePanels() {
+        pendingTeardown?.cancel()
+        pendingTeardown = nil
         for panel in panels { panel.orderOut(nil) }
         panels.removeAll()
     }
