@@ -89,6 +89,24 @@ final class DropTargetsCoordinator {
     private var hoverMonitorGlobal: Any?
     private var hoverMonitorLocal: Any?
 
+    /// Grace period between drag-end and overlay teardown.
+    ///
+    /// AppKit finalizes a drop — `prepareForDragOperation` then
+    /// `performDragOperation` — *after* the `.leftMouseUp` that our global
+    /// event monitor sees. Those two deliveries race, and ordering the
+    /// panel out while the drop is still in flight makes AppKit abandon
+    /// it: the drag animates back to the source and `performDragOperation`
+    /// never fires. The same failure mode is why `collectionBehavior` uses
+    /// `.stationary` rather than `.transient` (see `DropOverlayPanel`).
+    ///
+    /// On macOS 15 mouse-up almost always arrived last, so tearing down
+    /// synchronously was safe. macOS 26/27 widened the gap and the
+    /// teardown now usually wins — drops get silently rejected. Deferring
+    /// it closes the race. Panels that did accept a drop are pulled out of
+    /// `panels` by `beginProcessing`, so they're unaffected either way.
+    private static let teardownGrace: TimeInterval = 0.3
+    private var pendingTeardown: DispatchWorkItem?
+
     /// Long-lived map of Finder window IDs to (folder, title). Refreshed
     /// at startup, at drag-end, at drag-start (re-attempted; only lands
     /// for non-Finder drag sources — Finder won't answer AE while it's
@@ -260,11 +278,22 @@ final class DropTargetsCoordinator {
     }
 
     private func handleDragEnded() {
-        DebugLog.log("drop-targets", "drag ended")
+        // Record where the cursor was relative to each overlay. When a drop
+        // is rejected with no `draggingEntered` in the log at all, this is
+        // what separates "the panel wasn't under the cursor" (geometry bug)
+        // from "AppKit never offered us the drag" (window/level bug).
+        let cursor = NSEvent.mouseLocation
+        DebugLog.log("drop-targets",
+                     "drag ended — cursorAt=\(NSStringFromPoint(cursor)) panels=\(panels.count)")
+        for panel in panels {
+            DebugLog.log("drop-targets",
+                         "  panel: id=\(panel.target.windowID) frame=\(NSStringFromRect(panel.frame)) visible=\(panel.isVisible) cursorInside=\(panel.frame.contains(cursor))")
+        }
         dragActive = false
         stopModifierMonitor()
         stopHoverMonitor()
-        hidePanels()
+        // Deferred, not immediate — see `teardownGrace`.
+        scheduleTeardown()
         dragSourceURLs = []
         dragPromiseOnly = false
         // Single AE refresh per drag boundary. Catches any navigation
@@ -594,7 +623,24 @@ final class DropTargetsCoordinator {
         panel.fadeOutAndClose()
     }
 
+    /// Retire the drag's overlays after `teardownGrace`, giving AppKit
+    /// time to finalize a drop that landed on one of them. A new drag
+    /// starting inside the window cancels the pending work item via
+    /// `hidePanels`, which `handleDragStarted` calls first thing.
+    private func scheduleTeardown() {
+        pendingTeardown?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.pendingTeardown = nil
+            self.hidePanels()
+        }
+        pendingTeardown = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.teardownGrace, execute: work)
+    }
+
     private func hidePanels() {
+        pendingTeardown?.cancel()
+        pendingTeardown = nil
         for panel in panels { panel.orderOut(nil) }
         panels.removeAll()
     }
