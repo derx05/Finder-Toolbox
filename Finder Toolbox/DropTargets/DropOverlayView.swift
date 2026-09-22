@@ -585,6 +585,15 @@ final class DropOverlayView: NSView {
             // safely readable here, not from the background queue
             // that runs the AppleEvent round-trip.
             let dragged = MailBridge.draggedMessages(from: pb)
+            // Cross-check Mail's per-message records against the number of
+            // dragging items the pasteboard actually carries. When these
+            // disagree, Mail under-reported the drag and the shortfall is
+            // upstream of us — distinct from a record we parsed and then
+            // dropped, which `mail-bridge` reports separately.
+            let itemCount = pb.pasteboardItems?.count ?? -1
+            DebugLog.log("drop-overlay",
+                         "Mail drag[\(folderName)] — pasteboard items=\(itemCount) automator records=\(dragged.count)",
+                         level: itemCount == dragged.count ? .info : .warning)
             return performMailDrop(dragged: dragged)
         }
 
