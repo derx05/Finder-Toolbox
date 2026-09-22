@@ -100,6 +100,12 @@ final class DropOverlayView: NSView {
     /// `draggingEntered` / `draggingUpdated`.
     private var currentOperation: DropOperation = .move
 
+    /// Last mask reported back to AppKit from `draggingUpdated`. That
+    /// callback fires at ~60 Hz, so the debug log only records transitions
+    /// — enough to see *whether* the panel ever advertised an acceptable
+    /// operation, without flooding the 500-entry ring buffer.
+    private var lastLoggedAccepted: NSDragOperation?
+
     /// SF Symbol shown while the Apple Events query for the target folder
     /// is still in flight. Paired with `loadingTintColor` to read as a
     /// neutral "not yet ready" state — distinct from the move/copy
@@ -480,7 +486,13 @@ final class DropOverlayView: NSView {
     // MARK: - NSDraggingDestination
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard !isProcessing else { return [] }
+        lastLoggedAccepted = nil
+        guard !isProcessing else {
+            DebugLog.log("drop-overlay",
+                         "draggingEntered[\(folderName)] refused — panel already processing a drop",
+                         level: .warning)
+            return []
+        }
         // Refuse drops until we know the destination — we can't pick the
         // right operation (move vs. copy) without the target volume, so
         // commit-only-when-resolved is safer than guessing. The cursor
@@ -489,6 +501,9 @@ final class DropOverlayView: NSView {
         // accepting.
         guard targetFolder != nil else {
             log.debug("draggingEntered[\(self.folderName, privacy: .public)] refused — target folder not yet resolved")
+            DebugLog.log("drop-overlay",
+                         "draggingEntered[\(folderName)] refused — target folder not yet resolved",
+                         level: .warning)
             return []
         }
         let sourceMask = sender.draggingSourceOperationMask
@@ -497,10 +512,14 @@ final class DropOverlayView: NSView {
         let types = sender.draggingPasteboard.types?.map(\.rawValue).joined(separator: ", ") ?? "<none>"
         let (op, accepted) = desiredOperation(sender)
         log.debug("draggingEntered[\(self.folderName, privacy: .public)] mouseAt=\(NSStringFromPoint(mouseInScreen), privacy: .public) panelFrame=\(NSStringFromRect(panelFrame), privacy: .public) sourceMask=\(sourceMask.rawValue, privacy: .public) op=\(String(describing: op), privacy: .public) types=[\(types, privacy: .public)]")
+        DebugLog.log("drop-overlay",
+                     "draggingEntered[\(folderName)] mouseAt=\(NSStringFromPoint(mouseInScreen)) panelFrame=\(NSStringFromRect(panelFrame)) sourceMask=\(sourceMask.rawValue) op=\(op) accepted=\(accepted.rawValue) types=[\(types)]",
+                     level: accepted.isEmpty ? .warning : .info)
         if accepted.isEmpty {
             log.debug("dropOverlay[\(self.folderName, privacy: .public)]: source declined both copy and move (mask=\(sourceMask.rawValue, privacy: .public)) — refusing drag")
             return []
         }
+        lastLoggedAccepted = accepted
         // Defer the visual side effects: the first hover into a fresh
         // panel kicks off CALayer animations (conveyor + pulse) and an
         // icon/tint swap, and running those synchronously before
@@ -523,11 +542,20 @@ final class DropOverlayView: NSView {
                 self?.applyOperation(op)
             }
         }
+        // ~60 Hz callback — record transitions only.
+        if accepted != lastLoggedAccepted {
+            lastLoggedAccepted = accepted
+            DebugLog.log("drop-overlay",
+                         "draggingUpdated[\(folderName)] sourceMask=\(sender.draggingSourceOperationMask.rawValue) op=\(op) accepted=\(accepted.rawValue)",
+                         level: accepted.isEmpty ? .warning : .info)
+        }
         return accepted
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
         log.debug("draggingExited[\(self.folderName, privacy: .public)]")
+        DebugLog.log("drop-overlay", "draggingExited[\(folderName)]")
+        lastLoggedAccepted = nil
         DispatchQueue.main.async { [weak self] in
             self?.setHighlighted(false)
         }
@@ -535,10 +563,12 @@ final class DropOverlayView: NSView {
 
     override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
         log.debug("prepareForDragOperation[\(self.folderName, privacy: .public)]")
+        DebugLog.log("drop-overlay", "prepareForDragOperation[\(folderName)] — accepting")
         return true
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        DebugLog.log("drop-overlay", "performDragOperation[\(folderName)] — entered")
         setHighlighted(false)
 
         let (operation, _) = desiredOperation(sender)
