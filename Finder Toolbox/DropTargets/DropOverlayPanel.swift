@@ -150,9 +150,14 @@ final class DropOverlayPanel: NSPanel {
             ctx.duration = duration
             animator().alphaValue = 0
         }, completionHandler: { [weak self] in
-            guard let self, self.fadeGeneration == generation else { return }
-            self.orderOut(nil)
-            self.alphaValue = 1
+            // NSAnimationContext completion handlers are `@Sendable` but
+            // always run on the main thread, so reading the isolated
+            // `fadeGeneration` here is sound.
+            MainActor.assumeIsolated {
+                guard let self, self.fadeGeneration == generation else { return }
+                self.orderOut(nil)
+                self.alphaValue = 1
+            }
         })
     }
 
